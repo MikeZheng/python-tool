@@ -1,3 +1,5 @@
+import csv
+from pathlib import Path
 import time
 import os
 import hashlib
@@ -394,17 +396,247 @@ def process_multiple_directories(directory_paths: List[str],
     
     return file_results
 
-# Example usage
-if __name__ == "__main__":
+def generate_html_viewer(csv_file_path: str, output_html: str = "duplicate_viewer.html") -> None:
+    """
+    Generate an HTML page to view the first 10 groups of duplicate images
+    
+    Args:
+        csv_file_path (str): Path to the duplicate files CSV
+        output_html (str): Output HTML file path
+    """
+    # Read the CSV file
+    groups = []
+    current_group = []
+    
+    with open(csv_file_path, 'r', encoding='utf-8') as csvfile:
+        reader = csv.DictReader(csvfile)
+        
+        # Group files by SHA256 hash
+        prev_sha256 = None
+        for row in reader:
+            sha256 = row['sha256']
+            if sha256 != prev_sha256:
+                if current_group:
+                    groups.append(current_group)
+                    current_group = []
+            current_group.append(row)
+            prev_sha256 = sha256
+            
+        # Don't forget the last group
+        if current_group:
+            groups.append(current_group)
+    
+    # Generate HTML
+    html_content = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Duplicate Files Viewer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .group {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .group-header {
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+        .group-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+        }
+        .sha256 {
+            font-family: monospace;
+            font-size: 14px;
+            color: #666;
+            word-break: break-all;
+        }
+        .files-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .file-card {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            width: 200px;
+            background-color: #fafafa;
+        }
+        .file-image {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+            border-radius: 4px;
+            background-color: #eee;
+        }
+        .file-info {
+            margin-top: 10px;
+            font-size: 12px;
+        }
+        .file-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+            word-break: break-word;
+        }
+        .file-path {
+            color: #666;
+            margin-bottom: 5px;
+            word-break: break-word;
+        }
+        .file-time {
+            color: #888;
+            margin-bottom: 3px;
+        }
+        .file-size {
+            color: #888;
+            margin-bottom: 5px;
+        }
+        h1 {
+            color: #333;
+        }
+        .note {
+            background-color: #fff8e1;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+        .delete-btn {
+            background-color: #ff4444;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 11px;
+            width: 100%;
+            margin-top: 8px;
+        }
+        .delete-btn:hover {
+            background-color: #cc0000;
+        }
+        .deleted {
+            opacity: 0.5;
+            text-decoration: line-through;
+        }
+    </style>
+</head>
+<body>
+    <h1>Duplicate Files Viewer</h1>
+    
+    <div class="note">
+        <p><strong>Note:</strong> This page shows the first 10 groups of duplicate files. 
+        Images are displayed using file paths - they will only appear if the paths are accessible from this HTML file.</p>
+    </div>
+    
+    <script>
+        function deleteFile(filePath, element) {
+            // Fix escaped backslashes in the file path
+            const cleanPath = filePath.replace(/\\\\/g, '\\\\');
+            if (confirm("Are you sure you want to delete this file?\\n" + cleanPath)) {
+                // In a real implementation, you would need a backend to actually delete the file
+                // For now, we'll just mark it as deleted in the UI
+                element.closest('.file-card').classList.add('deleted');
+                element.disabled = true;
+                element.textContent = 'Deleted';
+                
+                // Here you could add actual file deletion logic if running in a web server context
+                console.log("Would delete: " + cleanPath);
+            }
+        }
+    </script>
+"""
+
+    # Add first 10 groups to HTML
+    for i, group in enumerate(groups[:10]):
+        sha256 = group[0]['sha256']
+        html_content += f"""
+    <div class="group">
+        <div class="group-header">
+            <div class="group-title">Group {i+1} ({len(group)} duplicates)</div>
+            <div class="sha256">SHA256: {sha256}</div>
+        </div>
+        <div class="files-container">
+"""
+        
+        for file_info in group:
+            file_path = file_info['filepath']
+            file_name = file_info['filename']
+            file_size = int(file_info['file_size'])
+            creation_time = file_info.get('creation_time', 'Unknown')
+            
+            # Format file size
+            if file_size < 1024:
+                size_str = f"{file_size} bytes"
+            elif file_size < 1024*1024:
+                size_str = f"{file_size//1024} KB"
+            else:
+                size_str = f"{file_size//(1024*1024)} MB"
+            
+            # Try to determine if it's an image based on extension
+            ext = Path(file_name).suffix.lower()
+            is_image = ext in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff']
+            
+            # Escape backslashes for JavaScript
+            js_safe_path = file_path.replace('\\', '\\\\')
+            
+            html_content += f"""
+            <div class="file-card">
+"""
+            
+            if is_image:
+                html_content += f"                <img src=\"{file_path}\" alt=\"{file_name}\" class=\"file-image\" onerror=\"this.style.display='none';\">\n"
+            else:
+                html_content += f"                <div class=\"file-image\" style=\"display:flex;align-items:center;justify-content:center;background-color:#eee;color:#999;\">No preview</div>\n"
+            
+            html_content += f"""                <div class="file-info">
+                    <div class="file-name">{file_name}</div>
+                    <div class="file-path">{file_path}</div>
+                    <div class="file-time">Created: {creation_time}</div>
+                    <div class="file-size">{size_str}</div>
+                    <button class="delete-btn" onclick="deleteFile('{js_safe_path}', this)">Delete File</button>
+                </div>
+            </div>
+"""
+        
+        html_content += "        </div>\n    </div>\n"
+
+    html_content += """
+</body>
+</html>
+"""
+    
+    # Write HTML to file
+    with open(output_html, 'w', encoding='utf-8') as f:
+        f.write(html_content)
+    
+    print(f"HTML viewer generated: {output_html}")
+
+
+def find_duplicate_file() -> None:
+
     # Specify your directory paths (can be multiple)
     directory_paths: List[str] = [
-        r"G:\视频",
-        r"G:\照片",  # Add more directories as needed
+        r"F:\\photo",
+        r"G:\\视频",  # Add more directories as needed
         # r"D:\Documents"
     ]
     
     # Specify output CSV file paths
-    output_csv: str = r"G:\all_files.csv"
+    output_csv: str = r"G:\\file_list.csv"
     duplicates_csv: Optional[str] = r"G:\duplicate_files.csv"  # Set to None if you don't want duplicates file
     
     logging.info("Script started")
@@ -417,3 +649,11 @@ if __name__ == "__main__":
     print(f"All file information saved to {output_csv}")
     if duplicates_csv:
         print(f"Duplicate file information saved to {duplicates_csv}")
+
+  
+
+# Example usage
+if __name__ == "__main__":
+    # find_duplicate_file()
+    # Generate the HTML viewer
+    generate_html_viewer("e:\\workspace\\python-tool\\duplicate_files.csv")

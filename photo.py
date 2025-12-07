@@ -575,6 +575,40 @@ def load_storage_config() -> Optional[str]:
         logging.error(f"Failed to load storage configuration: {e}")
         return None
 
+# Add this function to photo.py
+def scan_directories_api(directory_paths: List[str]) -> Dict[str, Union[bool, str, int]]:
+    """
+    API function to scan directories and return results
+    
+    Args:
+        directory_paths: List of directory paths to scan
+        
+    Returns:
+        Dict with success status, message, and files processed count
+    """
+    try:
+        global storage
+        # Initialize storage based on config
+        storage_type = load_storage_config()
+        if not storage_type:
+            storage_type = 'csv'
+        storage = get_storage(storage_type)
+        
+        # Process directories
+        results = process_multiple_directories(directory_paths)
+        
+        return {
+            'success': True,
+            'message': 'Directory scanned successfully',
+            'files_processed': len([r for r in results if r is not None])
+        }
+    except Exception as e:
+        return {
+            'success': False,
+            'message': f'Error scanning directories: {str(e)}',
+            'files_processed': 0
+        }
+
 # Modified main function
 def main():
     """

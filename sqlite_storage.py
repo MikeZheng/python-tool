@@ -43,18 +43,6 @@ class SQLiteStorage(StorageInterface):
             )
         ''')
 
-        # Create duplicates table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS duplicates (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                sha256 TEXT NOT NULL,
-                filename TEXT NOT NULL,
-                filepath TEXT NOT NULL,
-                creation_time TEXT NOT NULL,
-                file_size INTEGER NOT NULL,
-                duplicate_count INTEGER NOT NULL
-            )
-        ''')
         conn.commit()
         conn.close()
         logging.info(f"Database initialized at {DB_PATH}")
@@ -122,84 +110,32 @@ class SQLiteStorage(StorageInterface):
 
     
     def save_duplicates(self, duplicates: Dict[str, List[Dict[str, Union[str, int]]]]) -> None:
-        """Save duplicate files information to database"""
-        logging.info(f"Saving {len(duplicates)} duplicate groups to database")
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        
-        # Clear existing data
-        cursor.execute('DELETE FROM duplicates')
-        logging.debug("Cleared existing duplicates from database")
-        
-        # Insert new data
-        inserted_count = 0
-        for sha256, files in duplicates.items():
-            duplicate_count: int = len(files)
-            for file_data in files:
-                cursor.execute('''
-                    INSERT INTO duplicates (sha256, filename, filepath, creation_time, file_size, duplicate_count)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                ''', (
-                    sha256,
-                    file_data['filename'],
-                    file_data['filepath'],
-                    file_data['creation_time'],
-                    file_data['file_size'],
-                    duplicate_count
-                ))
-                inserted_count += 1
-        
-        conn.commit()
-        conn.close()
-        logging.info(f"Saved {inserted_count} duplicate records to database")
+        """Save duplicate files information - now a no-op since we query directly"""
+        logging.info("Skipping duplicate save operation - duplicates are queried directly from files table")
+        pass
 
     
     def refresh_duplicates(self) -> None:
-        """Refresh the duplicates database by removing entries for files that no longer exist"""
-        logging.info("Refreshing duplicates database")
+        """Refresh duplicates by removing entries for files that no longer exist"""
+        logging.info("Refreshing files database - removing entries for non-existent files")
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         
-        # Get all duplicates grouped by SHA256
-        cursor.execute('SELECT DISTINCT sha256 FROM duplicates')
-        sha256_list = cursor.fetchall()
+        # Get all files
+        cursor.execute('SELECT filepath, sha256 FROM files')
+        files = cursor.fetchall()
         
-        valid_sha256 = []
-        checked_groups = 0
-        
-        for (sha256,) in sha256_list:
-            cursor.execute('SELECT filepath FROM duplicates WHERE sha256 = ?', (sha256,))
-            filepaths = cursor.fetchall()
-            
-            # Check if all files in this group exist
-            all_files_exist = True
-            checked_files = 0
-            for (filepath,) in filepaths:
-                checked_files += 1
-                if not os.path.exists(filepath):
-                    all_files_exist = False
-                    logging.debug(f"File no longer exists: {filepath}")
-                    break
-            
-            # Only keep entries if all files in the group exist
-            if all_files_exist:
-                valid_sha256.append(sha256)
-                logging.debug(f"Valid duplicate group retained: {sha256} ({checked_files} files)")
-            else:
-                logging.debug(f"Invalid duplicate group marked for removal: {sha256}")
-            
-            checked_groups += 1
-        
-        # Delete invalid entries
+        # Check which files still exist
         deleted_count = 0
-        for (sha256,) in sha256_list:
-            if sha256 not in valid_sha256:
-                cursor.execute('DELETE FROM duplicates WHERE sha256 = ?', (sha256,))
-                deleted_count += cursor.rowcount
+        for filepath, sha256 in files:
+            if not os.path.exists(filepath):
+                cursor.execute('DELETE FROM files WHERE filepath = ?', (filepath,))
+                logging.debug(f"Removed non-existent file from database: {filepath}")
+                deleted_count += 1
         
         conn.commit()
         conn.close()
-        logging.info(f"Refreshed duplicates database. Checked {checked_groups} groups, removed {deleted_count} invalid entries")
+        logging.info(f"Refreshed files database. Removed {deleted_count} non-existent files")
 
     def get_duplicate_groups(self, limit: Optional[int] = None) -> List[List[Dict[str, Union[str, int]]]]:
         """Get duplicate file groups from database for HTML viewer
@@ -212,7 +148,18 @@ class SQLiteStorage(StorageInterface):
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         
-        cursor.execute('SELECT sha256, filename, filepath, creation_time, file_size FROM duplicates ORDER BY sha256')
+        # Query files that have duplicate SHA256 hashes
+        cursor.execute('''
+            SELECT f1.sha256, f1.filename, f1.filepath, f1.creation_time, f1.file_size
+            FROM files f1
+            WHERE f1.sha256 IN (
+                SELECT f2.sha256 
+                FROM files f2 
+                GROUP BY f2.sha256 
+                HAVING COUNT(*) > 1
+            )
+            ORDER BY f1.sha256
+        ''')
         rows = cursor.fetchall()
         
         groups = []

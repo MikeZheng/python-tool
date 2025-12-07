@@ -146,6 +146,14 @@
         <p><strong>Note:</strong> This page dynamically loads duplicate files from the backend. 
         Images are displayed using file paths - they will only appear if the paths are accessible from this HTML file.</p>
     </div>
+
+    <div class="scan-section" style="margin: 20px 0; padding: 15px; background-color: #e3f2fd; border-radius: 4px;">
+        <h3>Scan New Directories</h3>
+        <button id="scan-button" style="padding: 10px 20px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">
+            Select Directory to Scan
+        </button>
+        <div id="scan-status" style="margin-top: 10px; display: none;"></div>
+    </div>
     
     <div id="pagination" class="pagination">
         <button id="prev-page" disabled>Previous</button>
@@ -328,6 +336,50 @@
         
         // Load initial data
         loadDuplicates();
+
+        document.getElementById('scan-button').addEventListener('click', function() {
+            // In a web browser, we can't directly select directories
+            // We'll prompt the user to enter a directory path
+            const dirPath = prompt("Enter the full path of the directory to scan:");
+            if (dirPath) {
+                scanDirectory(dirPath);
+            }
+        });
+
+        function scanDirectory(dirPath) {
+            const statusDiv = document.getElementById('scan-status');
+            statusDiv.style.display = 'block';
+            statusDiv.innerHTML = '<div class="loading">Scanning directory: ' + dirPath + '...</div>';
+            
+            // Disable the scan button during scanning
+            document.getElementById('scan-button').disabled = true;
+            
+            // Send request to backend
+            fetch('http://localhost:5000/scan-directory', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({directory: dirPath})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    statusDiv.innerHTML = '<div style="color: green;">Scan completed successfully! Found ' + data.files_processed + ' files.</div>';
+                    // Reload the duplicates view
+                    loadDuplicates();
+                } else {
+                    statusDiv.innerHTML = '<div style="color: red;">Scan failed: ' + data.message + '</div>';
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                statusDiv.innerHTML = '<div style="color: red;">Failed to connect to backend service</div>';
+            })
+            .finally(() => {
+                document.getElementById('scan-button').disabled = false;
+            });
+        }
     </script>
 </body>
 </html>

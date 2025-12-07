@@ -43,6 +43,19 @@ class SQLiteStorage(StorageInterface):
             )
         ''')
 
+        # Add to init_database method
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS file_metadata (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_id INTEGER NOT NULL,
+                key TEXT NOT NULL,
+                value TEXT,
+                data_type TEXT DEFAULT 'string',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE
+            )
+        ''')
+
         conn.commit()
         conn.close()
         logging.info(f"Database initialized at {DB_PATH}")

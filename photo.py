@@ -1,7 +1,5 @@
-import sqlite3
-from typing import Dict, List, Set
-import csv
 from pathlib import Path
+import argparse
 import time
 import os
 import hashlib
@@ -12,6 +10,11 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 import sys
 from collections import defaultdict
 from typing import List, Dict, Tuple, Optional, Any, Union
+
+# Import storage modules
+from csv_storage import CSVStorage
+from sqlite_storage import SQLiteStorage
+from storage_base import StorageInterface
 
 # Configure logging to output to a file in the current directory
 # This sets up logging to both a file and console output
@@ -24,83 +27,25 @@ logging.basicConfig(
     ]
 )
 
-DB_PATH: str = r"file_database.db"
-FILES_TABLE: str = "files"
-# Path to output CSV file containing all file information        
-OUTPUT_CSV: str = r"file_list.csv"
-# Path to output CSV file containing duplicate file information
-DUPLICATES_CSV: str = r"duplicate_files.csv"
+# Global storage instance
+storage: Optional[StorageInterface] = None
 # Output HTML file path
 OUTPUT_HTML: str = "duplicate_viewer.html"
 
-def init_database() -> None:
-    """
-    Initialize the SQLite database with required tables
-    """
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    
-    # Create files table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS files (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            filename TEXT NOT NULL,
-            filepath TEXT UNIQUE NOT NULL,
-            creation_time TEXT NOT NULL,
-            file_size INTEGER NOT NULL,
-            sha256 TEXT NOT NULL
-        )
-    ''')
-
-    # Create duplicates table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS duplicates (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            sha256 TEXT NOT NULL,
-            filename TEXT NOT NULL,
-            filepath TEXT NOT NULL,
-            creation_time TEXT NOT NULL,
-            file_size INTEGER NOT NULL,
-            duplicate_count INTEGER NOT NULL
-        )
-    ''')
-    conn.commit()
-    conn.close()
-    logging.info(f"Database initialized at {DB_PATH}")
+def get_storage(storage_type: str) -> StorageInterface:
+    """Get appropriate storage instance based on type"""
+    if storage_type == "csv":
+        return CSVStorage()
+    elif storage_type == "sqlite":
+        return SQLiteStorage()
+    else:
+        raise ValueError(f"Unsupported storage type: {storage_type}")
 
 def load_existing_file_cache() -> Dict[Tuple[str, int], Dict[str, Union[str, int]]]:
-    """
-    Load existing file information from database to avoid reprocessing
-        
-    Returns:
-        Dict[Tuple[str, int], Dict[str, Union[str, int]]]: A dictionary mapping (filepath, file_size) 
-        tuples to file metadata dictionaries
-    """
-    file_cache: Dict[Tuple[str, int], Dict[str, Union[str, int]]] = {}
-    
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        
-        cursor.execute('SELECT filename, filepath, creation_time, file_size, sha256 FROM files')
-        rows = cursor.fetchall()
-        
-        for row in rows:
-            filename, filepath, creation_time, file_size, sha256 = row
-            cache_key: Tuple[str, int] = (filepath, file_size)
-            file_cache[cache_key] = {
-                'filename': filename,
-                'filepath': filepath,
-                'creation_time': creation_time,
-                'file_size': file_size,
-                'sha256': sha256
-            }
-        
-        logging.info(f"Loaded {len(file_cache)} existing file records from database")
-    except Exception as e:
-        logging.warning(f"Could not load existing data from database {DB_PATH}: {e}")
-    
-    return file_cache
+    """Load existing file information to avoid reprocessing"""
+    global storage
+    return storage.load_existing_file_cache()
+
 
 def calculate_sha256(file_path: str) -> Optional[str]:
     """
@@ -168,7 +113,7 @@ def process_single_file_with_cache(file_info: Tuple[str, str],
             cached_entry: Dict[str, Union[str, int]] = file_cache[cache_key]
             # Return cached data if it has a valid SHA256
             if cached_entry.get('sha256'):
-                logging.debug(f"Skipping SHA256 calculation for {filepath} (already processed)")
+                logging.info(f"Skipping SHA256 calculation for {filepath} (already processed)")
                 return cached_entry
         
         # Calculate SHA256 if not in cache or size changed
@@ -253,126 +198,7 @@ def find_duplicates(file_data_list: List[Optional[Dict[str, Union[str, int]]]]) 
     
     return duplicates
 
-def save_files_to_db(file_data_list: List[Optional[Dict[str, Union[str, int]]]]) -> None:
-    """
-    Save all file information to database
-    
-    Args:
-        file_data_list (List[Optional[Dict[str, Union[str, int]]]]): List of file metadata dictionaries
-    """
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    
-    # Clear existing data
-    cursor.execute('DELETE FROM files')
-    
-    # Insert new data
-    for file_data in file_data_list:
-        if file_data:
-            cursor.execute('''
-                INSERT OR REPLACE INTO files (filename, filepath, creation_time, file_size, sha256)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (
-                file_data['filename'],
-                file_data['filepath'],
-                file_data['creation_time'],
-                file_data['file_size'],
-                file_data['sha256']
-            ))
-    
-    conn.commit()
-    conn.close()
-    logging.info(f"Saved {len([f for f in file_data_list if f])} file records to database")
 
-def write_all_files_csv(file_data_list: List[Optional[Dict[str, Union[str, int]]]], 
-                        output_csv: str) -> None:
-    """
-    Write all file information to CSV
-    
-    Args:
-        file_data_list (List[Optional[Dict[str, Union[str, int]]]]): List of file metadata dictionaries
-        output_csv (str): Path to output CSV file
-    """
-    # Define CSV column headers
-    headers: List[str] = ['filename', 'filepath', 'creation_time', 'file_size', 'sha256']
-    
-    # Open CSV file for writing
-    with open(output_csv, 'w', newline='', encoding='utf-8') as csvfile:
-        # Create CSV writer with specified headers
-        writer = csv.DictWriter(csvfile, fieldnames=headers)
-        # Write header row
-        writer.writeheader()
-        
-        # Write each file's metadata to CSV
-        file_data: Optional[Dict[str, Union[str, int]]]
-        for file_data in file_data_list:
-            if file_data:
-                writer.writerow(file_data)
-
-def save_duplicates_to_db(duplicates: Dict[str, List[Dict[str, Union[str, int]]]]) -> None:
-    """
-    Save duplicate files information to database
-    
-    Args:
-        duplicates (Dict[str, List[Dict[str, Union[str, int]]]]): Dictionary of duplicate file groups
-    """
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    
-    # Clear existing data
-    cursor.execute('DELETE FROM duplicates')
-    
-    # Insert new data
-    for sha256, files in duplicates.items():
-        duplicate_count: int = len(files)
-        for file_data in files:
-            cursor.execute('''
-                INSERT INTO duplicates (sha256, filename, filepath, creation_time, file_size, duplicate_count)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', (
-                sha256,
-                file_data['filename'],
-                file_data['filepath'],
-                file_data['creation_time'],
-                file_data['file_size'],
-                duplicate_count
-            ))
-    
-    conn.commit()
-    conn.close()
-    logging.info(f"Saved {len(duplicates)} duplicate groups to database")
-
-def write_duplicates_csv(duplicates: Dict[str, List[Dict[str, Union[str, int]]]]) -> None:
-    """
-    Write duplicate files information to CSV
-    
-    Args:
-        duplicates (Dict[str, List[Dict[str, Union[str, int]]]]): Dictionary of duplicate file groups
-    """
-    # Define CSV column headers including duplicate count
-    headers: List[str] = ['sha256', 'filename', 'filepath', 'creation_time', 'file_size', 'duplicate_count']
-    
-    # Open CSV file for writing
-    with open(DUPLICATES_CSV, 'w', newline='', encoding='utf-8') as csvfile:
-        # Create CSV writer with specified headers
-        writer = csv.DictWriter(csvfile, fieldnames=headers)
-        # Write header row
-        writer.writeheader()
-        
-        # Write each duplicate file with its group information
-        sha256: str
-        files: List[Dict[str, Union[str, int]]]
-        for sha256, files in duplicates.items():
-            # Count number of duplicates in this group
-            duplicate_count: int = len(files)
-            # Write each file in the duplicate group
-            file_data: Dict[str, Union[str, int]]
-            for file_data in files:
-                # Copy file data and add SHA256 hash and duplicate count
-                row: Dict[str, Union[str, int]] = file_data.copy()
-                row['sha256'] = sha256
-                row['duplicate_count'] = duplicate_count
-                writer.writerow(row)
 
 def process_multiple_directories(directory_paths: List[str], 
                                max_workers: Optional[int] = None) -> List[Optional[Dict[str, Union[str, int]]]]:
@@ -386,6 +212,7 @@ def process_multiple_directories(directory_paths: List[str],
     Returns:
         List[Optional[Dict[str, Union[str, int]]]]: List of processed file metadata
     """
+    global storage
     # Log start of processing
     logging.info(f"Starting to process {len(directory_paths)} directories: {directory_paths}")
     
@@ -469,19 +296,17 @@ def process_multiple_directories(directory_paths: List[str],
                f"({skipped_count} files skipped due to caching)")
     
     # Write all files to CSV
-    logging.info(f"Writing all file information to {OUTPUT_CSV}")
-    save_files_to_db(file_results)
+    logging.info(f"Writing all file information")
+    storage.save_files(file_results)
     
     # Find and write duplicates if requested
     logging.info("Finding duplicate files...")
     duplicates = find_duplicates(file_results)
-    logging.info(f"Found {len(duplicates)} groups of duplicate files")
-    
     if duplicates:
         logging.info(f"Writing duplicate file information to {DUPLICATES_CSV}")
-        save_duplicates_to_db(duplicates)
+        storage.save_duplicates(duplicates)
     else:
-        logging.info("No duplicate files found")
+        logging.info("No duplicate files found")    
     
     return file_results
 
@@ -489,42 +314,8 @@ def generate_html_viewer() -> None:
     """
     Generate an HTML page to view the first 10 groups of duplicate images
     """
-    # Read data from database
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    
-    cursor.execute('SELECT * FROM duplicates ORDER BY sha256')
-    rows = cursor.fetchall()
-    
-    # Group files by SHA256 hash
-    groups = []
-    current_group = []
-    prev_sha256 = None
-    
-    for row in rows:
-        # Row format: id, sha256, filename, filepath, creation_time, file_size, duplicate_count
-        _, sha256, filename, filepath, creation_time, file_size, _ = row
-        
-        row_dict = {
-            'sha256': sha256,
-            'filename': filename,
-            'filepath': filepath,
-            'creation_time': creation_time,
-            'file_size': file_size
-        }
-        
-        if sha256 != prev_sha256:
-            if current_group:
-                groups.append(current_group)
-                current_group = []
-        current_group.append(row_dict)
-        prev_sha256 = sha256
-    
-    # Don't forget the last group
-    if current_group:
-        groups.append(current_group)
-    
-    conn.close()
+    groups = storage.get_duplicate_groups()
+
     
     # Generate HTML
     html_content = """
@@ -737,128 +528,54 @@ def generate_html_viewer() -> None:
     with open(OUTPUT_HTML, 'w', encoding='utf-8') as f:
         f.write(html_content)
     
-    print(f"HTML viewer generated: {OUTPUT_HTML}")
+    logging.info(f"HTML viewer generated: {OUTPUT_HTML}")
 
 
-def find_duplicate_file(directory_paths: List[str] ) -> None:
 
-    
-    logging.info("Script started")              
-    
-    # Generate file information CSV
-    process_multiple_directories(directory_paths, OUTPUT_CSV, DUPLICATES_CSV)
-    logging.info(f"All file information saved to {OUTPUT_CSV}")
-    if DUPLICATES_CSV:
-        logging.info(f"Duplicate file information saved to {DUPLICATES_CSV}")
-    print(f"All file information saved to {OUTPUT_CSV}")
-    if DUPLICATES_CSV:
-        print(f"Duplicate file information saved to {DUPLICATES_CSV}")
-
-def refresh_duplicates_db() -> None:
+def main():
     """
-    Refresh the duplicates database by removing entries for files that no longer exist
-    and also removing all other entries with the same SHA256 value.
+    # Use CSV storage (default)
+    python photo.py --directories "F:\\photo" "G:\\视频"
+
+    # Use SQLite storage
+    python photo.py --storage sqlite --directories "F:\\photo" "G:\\视频"
+
+    # Refresh duplicates with SQLite
+    python photo.py --storage sqlite --refresh
+
+    # Refresh duplicates with SQLite
+    python photo.py --storage csv --refresh
     """
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    
-    # Get all duplicates grouped by SHA256
-    cursor.execute('SELECT DISTINCT sha256 FROM duplicates')
-    sha256_list = cursor.fetchall()
-    
-    valid_sha256 = []
-    
-    for (sha256,) in sha256_list:
-        cursor.execute('SELECT filepath FROM duplicates WHERE sha256 = ?', (sha256,))
-        filepaths = cursor.fetchall()
-        
-        # Check if all files in this group exist
-        all_files_exist = True
-        for (filepath,) in filepaths:
-            if not os.path.exists(filepath):
-                all_files_exist = False
-                break
-        
-        # Only keep entries if all files in the group exist
-        if all_files_exist:
-            valid_sha256.append(sha256)
-        # If any file is missing, we drop the entire group
-    
-    # Delete invalid entries
-    deleted_count = 0
-    for (sha256,) in sha256_list:
-        if sha256 not in valid_sha256:
-            cursor.execute('DELETE FROM duplicates WHERE sha256 = ?', (sha256,))
-            deleted_count += cursor.rowcount
-    
-    conn.commit()
-    conn.close()
-    
-    print(f"Refreshed duplicates database. Removed {deleted_count} invalid entries.")
 
-def refresh_duplicates_csv() -> None:
-    """
-    Refresh the duplicates CSV file by removing entries for files that no longer exist
-    and also removing all other entries with the same SHA256 value.
+    parser = argparse.ArgumentParser(description='Find duplicate files')
+    parser.add_argument('--storage', choices=['csv', 'sqlite'], default='csv',
+                       help='Storage type to use (csv or sqlite)')
+    parser.add_argument('--refresh', action='store_true',
+                       help='Refresh duplicates by removing non-existent files')
+    parser.add_argument('--directories', nargs='+', required=False,
+                       help='Directories to scan for duplicates')
+    parser.add_argument('--generate-html', action='store_true',
+                       help='Generate HTML viewer after processing')
     
+    args = parser.parse_args()
+    print(args)
     
-    """    
-    output_csv_path = DUPLICATES_CSV
+    # Initialize storage
+    global storage
+    storage = get_storage(args.storage)
     
-    # First pass: Identify which files still exist
-    existing_files_by_sha256: Dict[str, List[dict]] = {}
-    missing_sha256_set: Set[str] = set()
+    # Handle refresh operation
+    if args.refresh:
+        storage.refresh_duplicates()
     
-    with open(DUPLICATES_CSV, 'r', encoding='utf-8') as csvfile:
-        reader = csv.DictReader(csvfile)
-        headers = reader.fieldnames
-        
-        # Group entries by SHA256
-        for row in reader:
-            sha256 = row['sha256']
-            filepath = row['filepath']
-            
-            if sha256 not in existing_files_by_sha256:
-                existing_files_by_sha256[sha256] = []
-            
-            existing_files_by_sha256[sha256].append(row)
+    # Process directories
+    directory_paths = args.directories
+    if directory_paths:
+        process_multiple_directories(directory_paths)
     
-    # Check which files exist and identify completely missing groups
-    valid_entries = []
-    for sha256, entries in existing_files_by_sha256.items():
-        # Check if all files in this group exist
-        all_files_exist = True
-        for entry in entries:
-            if not os.path.exists(entry['filepath']):
-                all_files_exist = False
-                break
-        
-        # Only keep entries if all files in the group exist
-        if all_files_exist:
-            valid_entries.extend(entries)
-        # If any file is missing, we drop the entire group (including existing files)
-    
-    # Write back the filtered entries
-    with open(output_csv_path, 'w', newline='', encoding='utf-8') as csvfile:
-        writer = csv.DictWriter(csvfile, fieldnames=headers)
-        writer.writeheader()
-        writer.writerows(valid_entries)
-    
-    print(f"Refreshed {DUPLICATES_CSV}. Kept {len(valid_entries)} entries.")
+    # Generate HTML viewer if requested
+    if args.generate_html:
+        generate_html_viewer()
 
-# You can call this function in your main code like:
-
-
-
-# Example usage
 if __name__ == "__main__":
-    # Specify your directory paths (can be multiple)
-    directory_paths: List[str] = [
-        r"F:\\photo",
-        r"G:\\视频",  # Add more directories as needed
-        # r"D:\Documents"
-    ]
-    # find_duplicate_file(directory_paths)
-    refresh_duplicates_db()
-    # Generate the HTML viewer
-    generate_html_viewer()
+    main()

@@ -25,6 +25,11 @@ class StorageInterface(ABC):
         pass
 
     @abstractmethod
-    def get_duplicate_groups(self) -> List[List[Dict[str, Union[str, int]]]]:
-        """Get duplicate file groups for HTML viewer"""
+    def get_duplicate_groups(self, limit: Optional[int] = None) -> List[List[Dict[str, Union[str, int]]]]:
+        """Get duplicate file groups for HTML viewer
+        
+        Args:
+            limit (Optional[int]): Maximum number of duplicate groups to return. 
+                                  If None, returns all groups.
+        """
         pass

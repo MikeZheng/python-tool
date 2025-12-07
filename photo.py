@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 import argparse
 import time
@@ -531,7 +532,50 @@ def generate_html_viewer() -> None:
     logging.info(f"HTML viewer generated: {OUTPUT_HTML}")
 
 
+# Add these constants near the top of the file
+CONFIG_FILE = "config.json"
 
+def save_storage_config(storage_type: str) -> None:
+    """
+    Save storage configuration to a JSON file
+    
+    Args:
+        storage_type (str): The storage type to save (csv or sqlite)
+    """
+    config = {
+        "storage_type": storage_type,
+        "last_updated": datetime.now().isoformat()
+    }
+    
+    try:
+        with open(CONFIG_FILE, 'w') as f:
+            json.dump(config, f, indent=2)
+        logging.info(f"Storage configuration saved to {CONFIG_FILE}")
+    except Exception as e:
+        logging.error(f"Failed to save storage configuration: {e}")
+
+def load_storage_config() -> Optional[str]:
+    """
+    Load storage configuration from JSON file
+    
+    Returns:
+        Optional[str]: The storage type from config, or None if not found
+    """
+    try:
+        if Path(CONFIG_FILE).exists():
+            with open(CONFIG_FILE, 'r') as f:
+                config = json.load(f)
+            storage_type = config.get("storage_type")
+            logging.info(f"Loaded storage configuration: {storage_type}")
+            return storage_type
+        else:
+            logging.info("No configuration file found")
+            return None
+    except Exception as e:
+        logging.error(f"Failed to load storage configuration: {e}")
+        return None
+
+# Modified main function
 def main():
     """
     # Use CSV storage (default)
@@ -548,7 +592,7 @@ def main():
     """
 
     parser = argparse.ArgumentParser(description='Find duplicate files')
-    parser.add_argument('--storage', choices=['csv', 'sqlite'], default='csv',
+    parser.add_argument('--storage', choices=['csv', 'sqlite'], default=None,
                        help='Storage type to use (csv or sqlite)')
     parser.add_argument('--refresh', action='store_true',
                        help='Refresh duplicates by removing non-existent files')
@@ -560,9 +604,22 @@ def main():
     args = parser.parse_args()
     print(args)
     
-    # Initialize storage
+    # Initialize storage - use config file if no argument provided
     global storage
-    storage = get_storage(args.storage)
+    storage_type = args.storage
+    
+    # If no storage type specified in arguments, try to load from config
+    if not storage_type:
+        storage_type = load_storage_config()
+    
+    # Default to csv if no config found
+    if not storage_type:
+        storage_type = 'csv'
+    
+    # Save the current storage configuration
+    save_storage_config(storage_type)
+    
+    storage = get_storage(storage_type)
     
     # Handle refresh operation
     if args.refresh:

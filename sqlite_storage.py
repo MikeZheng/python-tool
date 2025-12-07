@@ -201,8 +201,13 @@ class SQLiteStorage(StorageInterface):
         conn.close()
         logging.info(f"Refreshed duplicates database. Checked {checked_groups} groups, removed {deleted_count} invalid entries")
 
-    def get_duplicate_groups(self) -> List[List[Dict[str, Union[str, int]]]]:
-        """Get duplicate file groups from database for HTML viewer"""
+    def get_duplicate_groups(self, limit: Optional[int] = None) -> List[List[Dict[str, Union[str, int]]]]:
+        """Get duplicate file groups from database for HTML viewer
+        
+        Args:
+            limit (Optional[int]): Maximum number of duplicate groups to return. 
+                                If None, returns all groups.
+        """
         logging.info("Retrieving duplicate groups from database")
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
@@ -237,5 +242,12 @@ class SQLiteStorage(StorageInterface):
             groups.append(current_group)
         
         conn.close()
-        logging.info(f"Retrieved {len(groups)} duplicate groups from database")
+        
+        # Apply limit if specified
+        if limit is not None:
+            groups = groups[:limit]
+            logging.info(f"Retrieved {len(groups)} duplicate groups from database (limited to {limit})")
+        else:
+            logging.info(f"Retrieved {len(groups)} duplicate groups from database")
+        
         return groups

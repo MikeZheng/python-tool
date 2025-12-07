@@ -137,8 +137,13 @@ class CSVStorage(StorageInterface):
         
         logging.info(f"Refreshed duplicates CSV. Removed {removed_count} invalid entries, kept {len(valid_entries)} valid entries")
 
-    def get_duplicate_groups(self) -> List[List[Dict[str, Union[str, int]]]]:
-        """Get duplicate file groups from CSV for HTML viewer"""
+    def get_duplicate_groups(self, limit: Optional[int] = None) -> List[List[Dict[str, Union[str, int]]]]:
+        """Get duplicate file groups from CSV for HTML viewer
+        
+        Args:
+            limit (Optional[int]): Maximum number of duplicate groups to return. 
+                                If None, returns all groups.
+        """
         groups = []
         current_group = []
         prev_sha256 = None
@@ -156,6 +161,9 @@ class CSVStorage(StorageInterface):
                 if sha256 != prev_sha256:
                     if current_group:
                         groups.append(current_group)
+                        # Apply limit if specified
+                        if limit is not None and len(groups) >= limit:
+                            break
                         current_group = []
                 current_group.append({
                     'sha256': sha256,
@@ -166,8 +174,8 @@ class CSVStorage(StorageInterface):
                 })
                 prev_sha256 = sha256
                 
-            # Don't forget the last group
-            if current_group:
+            # Don't forget the last group (if we haven't reached the limit)
+            if current_group and (limit is None or len(groups) < limit):
                 groups.append(current_group)
         
         logging.info(f"Loaded {len(groups)} duplicate groups")

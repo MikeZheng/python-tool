@@ -664,10 +664,68 @@ def find_duplicate_file() -> None:
     if duplicates_csv:
         print(f"Duplicate file information saved to {duplicates_csv}")
 
-  
+
+def refresh_duplicates_csv(csv_file_path: str, output_csv_path: str = None) -> None:
+    """
+    Refresh the duplicates CSV file by removing entries for files that no longer exist
+    and also removing all other entries with the same SHA256 value.
+    
+    Args:
+        csv_file_path (str): Path to the input CSV file
+        output_csv_path (str, optional): Path to output CSV file. 
+                                       If None, overwrites the input file.
+    """
+    if output_csv_path is None:
+        output_csv_path = csv_file_path
+    
+    # First pass: Identify which files still exist
+    existing_files_by_sha256: Dict[str, List[dict]] = {}
+    missing_sha256_set: Set[str] = set()
+    
+    with open(csv_file_path, 'r', encoding='utf-8') as csvfile:
+        reader = csv.DictReader(csvfile)
+        headers = reader.fieldnames
+        
+        # Group entries by SHA256
+        for row in reader:
+            sha256 = row['sha256']
+            filepath = row['filepath']
+            
+            if sha256 not in existing_files_by_sha256:
+                existing_files_by_sha256[sha256] = []
+            
+            existing_files_by_sha256[sha256].append(row)
+    
+    # Check which files exist and identify completely missing groups
+    valid_entries = []
+    for sha256, entries in existing_files_by_sha256.items():
+        # Check if all files in this group exist
+        all_files_exist = True
+        for entry in entries:
+            if not os.path.exists(entry['filepath']):
+                all_files_exist = False
+                break
+        
+        # Only keep entries if all files in the group exist
+        if all_files_exist:
+            valid_entries.extend(entries)
+        # If any file is missing, we drop the entire group (including existing files)
+    
+    # Write back the filtered entries
+    with open(output_csv_path, 'w', newline='', encoding='utf-8') as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=headers)
+        writer.writeheader()
+        writer.writerows(valid_entries)
+    
+    print(f"Refreshed {csv_file_path}. Kept {len(valid_entries)} entries.")
+
+# You can call this function in your main code like:
+
+
 
 # Example usage
 if __name__ == "__main__":
     # find_duplicate_file()
+    refresh_duplicates_csv("e:\\workspace\\python-tool\\duplicate_files.csv")
     # Generate the HTML viewer
     generate_html_viewer("e:\\workspace\\python-tool\\duplicate_files.csv")

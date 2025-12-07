@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -103,20 +102,73 @@
             opacity: 0.5;
             text-decoration: line-through;
         }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            font-style: italic;
+            color: #666;
+        }
+        .error {
+            background-color: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin: 20px 0;
+        }
+        .pagination button {
+            padding: 8px 16px;
+            background-color: #1976d2;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .pagination button:disabled {
+            background-color: #bdbdbd;
+            cursor: not-allowed;
+        }
+        .pagination span {
+            align-self: center;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
     <h1>Duplicate Files Viewer</h1>
     
     <div class="note">
-        <p><strong>Note:</strong> This page shows the first 10 groups of duplicate files. 
+        <p><strong>Note:</strong> This page dynamically loads duplicate files from the backend. 
         Images are displayed using file paths - they will only appear if the paths are accessible from this HTML file.</p>
     </div>
     
+    <div id="pagination" class="pagination">
+        <button id="prev-page" disabled>Previous</button>
+        <span>Page <span id="current-page">1</span></span>
+        <button id="next-page">Next</button>
+    </div>
+    
+    <div id="content">
+        <div class="loading">Loading duplicate files...</div>
+    </div>
+    
+    <div id="pagination-bottom" class="pagination">
+        <button id="prev-page-bottom" disabled>Previous</button>
+        <span>Page <span id="current-page-bottom">1</span></span>
+        <button id="next-page-bottom">Next</button>
+    </div>
+
     <script>
+        let currentPage = 1;
+        
         function deleteFile(filePath, element) {
             // Fix escaped backslashes in the file path
-            const cleanPath = filePath.replace(/\\/g, '\\');
+            const cleanPath = filePath.replace(/\\\\/g, '\\');
             if (confirm("Are you sure you want to delete this file?\n" + cleanPath)) {
                 // Call Python backend
                 fetch('http://localhost:5000/delete-file', {
@@ -142,317 +194,140 @@
                 });
             }
         }
+        
+        function formatFileSize(bytes) {
+            if (bytes < 1024) {
+                return bytes + ' bytes';
+            } else if (bytes < 1024 * 1024) {
+                return Math.floor(bytes / 1024) + ' KB';
+            } else {
+                return Math.floor(bytes / (1024 * 1024)) + ' MB';
+            }
+        }
+        
+        function isImageFile(filename) {
+            const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff'];
+            const ext = filename.toLowerCase().substring(filename.lastIndexOf('.'));
+            return imageExtensions.includes(ext);
+        }
+        
+        function renderGroups(groups) {
+            const contentDiv = document.getElementById('content');
+            
+            if (groups.length === 0) {
+                contentDiv.innerHTML = '<div class="loading">No duplicate files found.</div>';
+                return;
+            }
+            
+            let html = '';
+            
+            groups.forEach((group, index) => {
+                const sha256 = group[0].sha256;
+                const groupNumber = (currentPage - 1) * 20 + index + 1;
+                
+                html += `
+                <div class="group">
+                    <div class="group-header">
+                        <div class="group-title">Group ${groupNumber} (${group.length} duplicates)</div>
+                        <div class="sha256">SHA256: ${sha256}</div>
+                    </div>
+                    <div class="files-container">
+                `;
+                
+                group.forEach(file => {
+                    const isImage = isImageFile(file.filename);
+                    const jsSafePath = file.filepath.replace(/\\/g, '\\\\');
+                    const fileSize = formatFileSize(file.file_size);
+                    
+                    html += `
+                    <div class="file-card">
+                    `;
+                    
+                    if (isImage) {
+                        html += `<img src="${file.filepath}" alt="${file.filename}" class="file-image" onerror="this.style.display='none';">`;
+                    } else {
+                        html += `<div class="file-image" style="display:flex;align-items:center;justify-content:center;background-color:#eee;color:#999;">No preview</div>`;
+                    }
+                    
+                    html += `
+                        <div class="file-info">
+                            <div class="file-name">${file.filename}</div>
+                            <div class="file-path">${file.filepath}</div>
+                            <div class="file-time">Created: ${file.creation_time}</div>
+                            <div class="file-size">${fileSize}</div>
+                            <button class="delete-btn" onclick="deleteFile('${jsSafePath}', this)">Delete File</button>
+                        </div>
+                    </div>
+                    `;
+                });
+                
+                html += `
+                    </div>
+                </div>
+                `;
+            });
+            
+            contentDiv.innerHTML = html;
+        }
+        
+        function updatePagination(paginationInfo) {
+            const { page, total_pages, has_more } = paginationInfo;
+            
+            // Update top pagination controls
+            document.getElementById('current-page').textContent = page;
+            document.getElementById('prev-page').disabled = page <= 1;
+            document.getElementById('next-page').disabled = !has_more;
+            
+            // Update bottom pagination controls
+            document.getElementById('current-page-bottom').textContent = page;
+            document.getElementById('prev-page-bottom').disabled = page <= 1;
+            document.getElementById('next-page-bottom').disabled = !has_more;
+        }
+        
+        function loadDuplicates(page = 1) {
+            const contentDiv = document.getElementById('content');
+            contentDiv.innerHTML = '<div class="loading">Loading duplicate files...</div>';
+            
+            fetch(`http://localhost:5000/duplicates?page=${page}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        renderGroups(data.data);
+                        updatePagination(data.pagination);
+                        currentPage = page;
+                    } else {
+                        contentDiv.innerHTML = `<div class="error">Error loading duplicates: ${data.message}</div>`;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    contentDiv.innerHTML = `<div class="error">Failed to connect to backend service: ${error.message}</div>`;
+                });
+        }
+        
+        // Set up pagination event listeners
+        document.getElementById('prev-page').addEventListener('click', () => {
+            if (currentPage > 1) {
+                loadDuplicates(currentPage - 1);
+            }
+        });
+        
+        document.getElementById('next-page').addEventListener('click', () => {
+            loadDuplicates(currentPage + 1);
+        });
+        
+        document.getElementById('prev-page-bottom').addEventListener('click', () => {
+            if (currentPage > 1) {
+                loadDuplicates(currentPage - 1);
+            }
+        });
+        
+        document.getElementById('next-page-bottom').addEventListener('click', () => {
+            loadDuplicates(currentPage + 1);
+        });
+        
+        // Load initial data
+        loadDuplicates();
     </script>
-
-    <div class="group">
-        <div class="group-header">
-            <div class="group-title">Group 1 (2 duplicates)</div>
-            <div class="sha256">SHA256: 6a0aee4885681c21ce6bbfabf3a4b8af80eac680fd9b5141792c039bfcd0f639</div>
-        </div>
-        <div class="files-container">
-
-            <div class="file-card">
-                <div class="file-image" style="display:flex;align-items:center;justify-content:center;background-color:#eee;color:#999;">No preview</div>
-                <div class="file-info">
-                    <div class="file-name">VID_20160128_090305.mp4</div>
-                    <div class="file-path">F:\\photo\2016\01\VID_20160128_090305.mp4</div>
-                    <div class="file-time">Created: 2023-08-20 18:10:13</div>
-                    <div class="file-size">29 MB</div>
-                    <button class="delete-btn" onclick="deleteFile('F:\\\\photo\\2016\\01\\VID_20160128_090305.mp4', this)">Delete File</button>
-                </div>
-            </div>
-
-            <div class="file-card">
-                <div class="file-image" style="display:flex;align-items:center;justify-content:center;background-color:#eee;color:#999;">No preview</div>
-                <div class="file-info">
-                    <div class="file-name">VID_20160128_090305.mp4</div>
-                    <div class="file-path">G:\\视频\VID_20160128_090305.mp4</div>
-                    <div class="file-time">Created: 2025-12-06 11:30:46</div>
-                    <div class="file-size">29 MB</div>
-                    <button class="delete-btn" onclick="deleteFile('G:\\\\视频\\VID_20160128_090305.mp4', this)">Delete File</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="group">
-        <div class="group-header">
-            <div class="group-title">Group 2 (2 duplicates)</div>
-            <div class="sha256">SHA256: fb12fd75f4a567f931f18735045aa75852cb0a5edff73b477683781e9a66d1bf</div>
-        </div>
-        <div class="files-container">
-
-            <div class="file-card">
-                <div class="file-image" style="display:flex;align-items:center;justify-content:center;background-color:#eee;color:#999;">No preview</div>
-                <div class="file-info">
-                    <div class="file-name">1455005011521.mp4</div>
-                    <div class="file-path">F:\\photo\2016\02\1455005011521.mp4</div>
-                    <div class="file-time">Created: 2023-08-20 18:10:13</div>
-                    <div class="file-size">4 MB</div>
-                    <button class="delete-btn" onclick="deleteFile('F:\\\\photo\\2016\\02\\1455005011521.mp4', this)">Delete File</button>
-                </div>
-            </div>
-
-            <div class="file-card">
-                <div class="file-image" style="display:flex;align-items:center;justify-content:center;background-color:#eee;color:#999;">No preview</div>
-                <div class="file-info">
-                    <div class="file-name">1455005011521.mp4</div>
-                    <div class="file-path">G:\\视频\1455005011521.mp4</div>
-                    <div class="file-time">Created: 2025-12-06 11:10:01</div>
-                    <div class="file-size">4 MB</div>
-                    <button class="delete-btn" onclick="deleteFile('G:\\\\视频\\1455005011521.mp4', this)">Delete File</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="group">
-        <div class="group-header">
-            <div class="group-title">Group 3 (2 duplicates)</div>
-            <div class="sha256">SHA256: 7b06885a15b19a44b197326609cad75e18fafcb0ed19d6b505ea6c44ea9c65d9</div>
-        </div>
-        <div class="files-container">
-
-            <div class="file-card">
-                <img src="F:\\photo\2016\02\IMG_20160201_174743.jpg" alt="IMG_20160201_174743.jpg" class="file-image" onerror="this.style.display='none';">
-                <div class="file-info">
-                    <div class="file-name">IMG_20160201_174743.jpg</div>
-                    <div class="file-path">F:\\photo\2016\02\IMG_20160201_174743.jpg</div>
-                    <div class="file-time">Created: 2023-08-20 18:10:13</div>
-                    <div class="file-size">985 KB</div>
-                    <button class="delete-btn" onclick="deleteFile('F:\\\\photo\\2016\\02\\IMG_20160201_174743.jpg', this)">Delete File</button>
-                </div>
-            </div>
-
-            <div class="file-card">
-                <img src="G:\\视频\IMG_20160201_174743.jpg" alt="IMG_20160201_174743.jpg" class="file-image" onerror="this.style.display='none';">
-                <div class="file-info">
-                    <div class="file-name">IMG_20160201_174743.jpg</div>
-                    <div class="file-path">G:\\视频\IMG_20160201_174743.jpg</div>
-                    <div class="file-time">Created: 2025-03-11 22:03:50</div>
-                    <div class="file-size">985 KB</div>
-                    <button class="delete-btn" onclick="deleteFile('G:\\\\视频\\IMG_20160201_174743.jpg', this)">Delete File</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="group">
-        <div class="group-header">
-            <div class="group-title">Group 4 (2 duplicates)</div>
-            <div class="sha256">SHA256: 2503dca621f6a930d369f843423120832f963cd039130b04f1f368ecbab7c075</div>
-        </div>
-        <div class="files-container">
-
-            <div class="file-card">
-                <img src="F:\\photo\2016\02\IMG_20160201_174747.jpg" alt="IMG_20160201_174747.jpg" class="file-image" onerror="this.style.display='none';">
-                <div class="file-info">
-                    <div class="file-name">IMG_20160201_174747.jpg</div>
-                    <div class="file-path">F:\\photo\2016\02\IMG_20160201_174747.jpg</div>
-                    <div class="file-time">Created: 2023-08-13 13:20:48</div>
-                    <div class="file-size">806 KB</div>
-                    <button class="delete-btn" onclick="deleteFile('F:\\\\photo\\2016\\02\\IMG_20160201_174747.jpg', this)">Delete File</button>
-                </div>
-            </div>
-
-            <div class="file-card">
-                <img src="G:\\视频\IMG_20160201_174747.jpg" alt="IMG_20160201_174747.jpg" class="file-image" onerror="this.style.display='none';">
-                <div class="file-info">
-                    <div class="file-name">IMG_20160201_174747.jpg</div>
-                    <div class="file-path">G:\\视频\IMG_20160201_174747.jpg</div>
-                    <div class="file-time">Created: 2025-03-11 22:03:50</div>
-                    <div class="file-size">806 KB</div>
-                    <button class="delete-btn" onclick="deleteFile('G:\\\\视频\\IMG_20160201_174747.jpg', this)">Delete File</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="group">
-        <div class="group-header">
-            <div class="group-title">Group 5 (2 duplicates)</div>
-            <div class="sha256">SHA256: de799f1f1b727c5ce7d57c6254ff826a3e7639d5b4f9d292375e5becd82b5938</div>
-        </div>
-        <div class="files-container">
-
-            <div class="file-card">
-                <img src="F:\\photo\2016\02\IMG_20160201_174748.jpg" alt="IMG_20160201_174748.jpg" class="file-image" onerror="this.style.display='none';">
-                <div class="file-info">
-                    <div class="file-name">IMG_20160201_174748.jpg</div>
-                    <div class="file-path">F:\\photo\2016\02\IMG_20160201_174748.jpg</div>
-                    <div class="file-time">Created: 2023-08-20 18:10:14</div>
-                    <div class="file-size">777 KB</div>
-                    <button class="delete-btn" onclick="deleteFile('F:\\\\photo\\2016\\02\\IMG_20160201_174748.jpg', this)">Delete File</button>
-                </div>
-            </div>
-
-            <div class="file-card">
-                <img src="G:\\视频\IMG_20160201_174748.jpg" alt="IMG_20160201_174748.jpg" class="file-image" onerror="this.style.display='none';">
-                <div class="file-info">
-                    <div class="file-name">IMG_20160201_174748.jpg</div>
-                    <div class="file-path">G:\\视频\IMG_20160201_174748.jpg</div>
-                    <div class="file-time">Created: 2025-03-11 22:03:50</div>
-                    <div class="file-size">777 KB</div>
-                    <button class="delete-btn" onclick="deleteFile('G:\\\\视频\\IMG_20160201_174748.jpg', this)">Delete File</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="group">
-        <div class="group-header">
-            <div class="group-title">Group 6 (2 duplicates)</div>
-            <div class="sha256">SHA256: efdf89a75779374d501f07221979f84cc40bb92e2f5973aac8c15c9f0fd85bfb</div>
-        </div>
-        <div class="files-container">
-
-            <div class="file-card">
-                <img src="F:\\photo\2016\02\IMG_20160205_124319.jpg" alt="IMG_20160205_124319.jpg" class="file-image" onerror="this.style.display='none';">
-                <div class="file-info">
-                    <div class="file-name">IMG_20160205_124319.jpg</div>
-                    <div class="file-path">F:\\photo\2016\02\IMG_20160205_124319.jpg</div>
-                    <div class="file-time">Created: 2023-08-20 18:10:14</div>
-                    <div class="file-size">1 MB</div>
-                    <button class="delete-btn" onclick="deleteFile('F:\\\\photo\\2016\\02\\IMG_20160205_124319.jpg', this)">Delete File</button>
-                </div>
-            </div>
-
-            <div class="file-card">
-                <img src="G:\\视频\IMG_20160205_124319.jpg" alt="IMG_20160205_124319.jpg" class="file-image" onerror="this.style.display='none';">
-                <div class="file-info">
-                    <div class="file-name">IMG_20160205_124319.jpg</div>
-                    <div class="file-path">G:\\视频\IMG_20160205_124319.jpg</div>
-                    <div class="file-time">Created: 2025-03-11 22:03:50</div>
-                    <div class="file-size">1 MB</div>
-                    <button class="delete-btn" onclick="deleteFile('G:\\\\视频\\IMG_20160205_124319.jpg', this)">Delete File</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="group">
-        <div class="group-header">
-            <div class="group-title">Group 7 (2 duplicates)</div>
-            <div class="sha256">SHA256: 161ca99dc4b3e89ac1bc7484f0f2e45effd7529f759c313d4ee0aeea4c5687a1</div>
-        </div>
-        <div class="files-container">
-
-            <div class="file-card">
-                <img src="F:\\photo\2016\02\IMG_20160214_194655.jpg" alt="IMG_20160214_194655.jpg" class="file-image" onerror="this.style.display='none';">
-                <div class="file-info">
-                    <div class="file-name">IMG_20160214_194655.jpg</div>
-                    <div class="file-path">F:\\photo\2016\02\IMG_20160214_194655.jpg</div>
-                    <div class="file-time">Created: 2023-08-20 18:10:14</div>
-                    <div class="file-size">876 KB</div>
-                    <button class="delete-btn" onclick="deleteFile('F:\\\\photo\\2016\\02\\IMG_20160214_194655.jpg', this)">Delete File</button>
-                </div>
-            </div>
-
-            <div class="file-card">
-                <img src="G:\\视频\IMG_20160214_194655.jpg" alt="IMG_20160214_194655.jpg" class="file-image" onerror="this.style.display='none';">
-                <div class="file-info">
-                    <div class="file-name">IMG_20160214_194655.jpg</div>
-                    <div class="file-path">G:\\视频\IMG_20160214_194655.jpg</div>
-                    <div class="file-time">Created: 2025-03-11 22:03:50</div>
-                    <div class="file-size">876 KB</div>
-                    <button class="delete-btn" onclick="deleteFile('G:\\\\视频\\IMG_20160214_194655.jpg', this)">Delete File</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="group">
-        <div class="group-header">
-            <div class="group-title">Group 8 (2 duplicates)</div>
-            <div class="sha256">SHA256: c25fa7e5f9648d5bafdeaee187fb934193a87d3559570065db10afa8b090785d</div>
-        </div>
-        <div class="files-container">
-
-            <div class="file-card">
-                <img src="F:\\photo\2016\02\IMG_20160214_200229.jpg" alt="IMG_20160214_200229.jpg" class="file-image" onerror="this.style.display='none';">
-                <div class="file-info">
-                    <div class="file-name">IMG_20160214_200229.jpg</div>
-                    <div class="file-path">F:\\photo\2016\02\IMG_20160214_200229.jpg</div>
-                    <div class="file-time">Created: 2023-08-20 18:10:15</div>
-                    <div class="file-size">943 KB</div>
-                    <button class="delete-btn" onclick="deleteFile('F:\\\\photo\\2016\\02\\IMG_20160214_200229.jpg', this)">Delete File</button>
-                </div>
-            </div>
-
-            <div class="file-card">
-                <img src="G:\\视频\IMG_20160214_200229.jpg" alt="IMG_20160214_200229.jpg" class="file-image" onerror="this.style.display='none';">
-                <div class="file-info">
-                    <div class="file-name">IMG_20160214_200229.jpg</div>
-                    <div class="file-path">G:\\视频\IMG_20160214_200229.jpg</div>
-                    <div class="file-time">Created: 2025-03-11 22:03:50</div>
-                    <div class="file-size">943 KB</div>
-                    <button class="delete-btn" onclick="deleteFile('G:\\\\视频\\IMG_20160214_200229.jpg', this)">Delete File</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="group">
-        <div class="group-header">
-            <div class="group-title">Group 9 (2 duplicates)</div>
-            <div class="sha256">SHA256: 869d907c4e0ae70a5c12ed31893de4398134c4be9690eb80c37b09cd71bd709e</div>
-        </div>
-        <div class="files-container">
-
-            <div class="file-card">
-                <img src="F:\\photo\2016\02\IMG_20160214_200241.jpg" alt="IMG_20160214_200241.jpg" class="file-image" onerror="this.style.display='none';">
-                <div class="file-info">
-                    <div class="file-name">IMG_20160214_200241.jpg</div>
-                    <div class="file-path">F:\\photo\2016\02\IMG_20160214_200241.jpg</div>
-                    <div class="file-time">Created: 2023-08-13 13:20:48</div>
-                    <div class="file-size">922 KB</div>
-                    <button class="delete-btn" onclick="deleteFile('F:\\\\photo\\2016\\02\\IMG_20160214_200241.jpg', this)">Delete File</button>
-                </div>
-            </div>
-
-            <div class="file-card">
-                <img src="G:\\视频\IMG_20160214_200241.jpg" alt="IMG_20160214_200241.jpg" class="file-image" onerror="this.style.display='none';">
-                <div class="file-info">
-                    <div class="file-name">IMG_20160214_200241.jpg</div>
-                    <div class="file-path">G:\\视频\IMG_20160214_200241.jpg</div>
-                    <div class="file-time">Created: 2025-03-11 22:03:50</div>
-                    <div class="file-size">922 KB</div>
-                    <button class="delete-btn" onclick="deleteFile('G:\\\\视频\\IMG_20160214_200241.jpg', this)">Delete File</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="group">
-        <div class="group-header">
-            <div class="group-title">Group 10 (2 duplicates)</div>
-            <div class="sha256">SHA256: 6b08dad0eb1b61e8225a00664310cfbe86ea5012da922024ac80432cddced468</div>
-        </div>
-        <div class="files-container">
-
-            <div class="file-card">
-                <img src="F:\\photo\2016\02\IMG_20160214_200242.jpg" alt="IMG_20160214_200242.jpg" class="file-image" onerror="this.style.display='none';">
-                <div class="file-info">
-                    <div class="file-name">IMG_20160214_200242.jpg</div>
-                    <div class="file-path">F:\\photo\2016\02\IMG_20160214_200242.jpg</div>
-                    <div class="file-time">Created: 2023-08-20 18:10:15</div>
-                    <div class="file-size">851 KB</div>
-                    <button class="delete-btn" onclick="deleteFile('F:\\\\photo\\2016\\02\\IMG_20160214_200242.jpg', this)">Delete File</button>
-                </div>
-            </div>
-
-            <div class="file-card">
-                <img src="G:\\视频\IMG_20160214_200242.jpg" alt="IMG_20160214_200242.jpg" class="file-image" onerror="this.style.display='none';">
-                <div class="file-info">
-                    <div class="file-name">IMG_20160214_200242.jpg</div>
-                    <div class="file-path">G:\\视频\IMG_20160214_200242.jpg</div>
-                    <div class="file-time">Created: 2025-03-11 22:03:50</div>
-                    <div class="file-size">851 KB</div>
-                    <button class="delete-btn" onclick="deleteFile('G:\\\\视频\\IMG_20160214_200242.jpg', this)">Delete File</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
 </body>
 </html>

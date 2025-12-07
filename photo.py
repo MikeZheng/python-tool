@@ -1,9 +1,9 @@
+from typing import Dict, List, Set
 import csv
 from pathlib import Path
 import time
 import os
 import hashlib
-import csv
 from datetime import datetime
 import logging
 import multiprocessing as mp
@@ -547,14 +547,28 @@ def generate_html_viewer(csv_file_path: str, output_html: str = "duplicate_viewe
             // Fix escaped backslashes in the file path
             const cleanPath = filePath.replace(/\\\\/g, '\\\\');
             if (confirm("Are you sure you want to delete this file?\\n" + cleanPath)) {
-                // In a real implementation, you would need a backend to actually delete the file
-                // For now, we'll just mark it as deleted in the UI
-                element.closest('.file-card').classList.add('deleted');
-                element.disabled = true;
-                element.textContent = 'Deleted';
-                
-                // Here you could add actual file deletion logic if running in a web server context
-                console.log("Would delete: " + cleanPath);
+                // Call Python backend
+                fetch('http://localhost:5000/delete-file', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({filePath: cleanPath})
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        element.closest('.file-card').classList.add('deleted');
+                        element.disabled = true;
+                        element.textContent = 'Deleted';
+                    } else {
+                        alert('Error deleting file: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Failed to connect to backend service');
+                });
             }
         }
     </script>

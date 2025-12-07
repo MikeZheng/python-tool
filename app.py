@@ -1,3 +1,4 @@
+from photo import scan_directories_api
 from flask import Flask, request, jsonify
 import os
 from flask_cors import CORS
@@ -114,6 +115,35 @@ def get_duplicates():
             'success': False,
             'message': f'Error retrieving duplicates: {str(e)}'
         }), 500
+    
+
+# Replace the scan_directory route with:
+@app.route('/scan-directory', methods=['POST'])
+def scan_directory():
+    """
+    Scan a directory for files and add them to storage
+    """
+    try:
+        data = request.json
+        directory_path = data.get('directory')
+        
+        if not directory_path:
+            return jsonify({'success': False, 'message': 'No directory path provided'}), 400
+            
+        if not os.path.exists(directory_path):
+            return jsonify({'success': False, 'message': 'Directory does not exist'}), 400
+            
+        # Call the photo.py function directly
+        result = scan_directories_api([directory_path])
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error scanning directory: {str(e)}'
+        }), 500
+
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

@@ -23,12 +23,17 @@ logging.basicConfig(
     ]
 )
 
-def load_existing_file_cache(output_csv: str) -> Dict[Tuple[str, int], Dict[str, Union[str, int]]]:
+
+# Path to output CSV file containing all file information        
+OUTPUT_CSV: str = r"file_list.csv"
+# Path to output CSV file containing duplicate file information
+DUPLICATES_CSV: str = r"duplicate_files.csv"
+# Output HTML file path
+OUTPUT_HTML: str = "duplicate_viewer.html"
+
+def load_existing_file_cache() -> Dict[Tuple[str, int], Dict[str, Union[str, int]]]:
     """
     Load existing file information from CSV to avoid reprocessing
-    
-    Args:
-        output_csv (str): Path to the CSV file containing previously processed file information
         
     Returns:
         Dict[Tuple[str, int], Dict[str, Union[str, int]]]: A dictionary mapping (filepath, file_size) 
@@ -38,10 +43,10 @@ def load_existing_file_cache(output_csv: str) -> Dict[Tuple[str, int], Dict[str,
     file_cache: Dict[Tuple[str, int], Dict[str, Union[str, int]]] = {}
     
     # Check if the CSV file exists
-    if os.path.exists(output_csv):
+    if os.path.exists(OUTPUT_CSV):
         try:
             # Open and read the existing CSV file
-            with open(output_csv, 'r', encoding='utf-8') as csvfile:
+            with open(OUTPUT_CSV, 'r', encoding='utf-8') as csvfile:
                 reader = csv.DictReader(csvfile)
                 # Iterate through each row in the CSV
                 for row in reader:
@@ -62,10 +67,10 @@ def load_existing_file_cache(output_csv: str) -> Dict[Tuple[str, int], Dict[str,
                             # Skip rows with invalid data
                             continue
             # Log the number of records loaded
-            logging.info(f"Loaded {len(file_cache)} existing file records from {output_csv}")
+            logging.info(f"Loaded {len(file_cache)} existing file records from {OUTPUT_CSV}")
         except Exception as e:
             # Log warning if CSV file cannot be read
-            logging.warning(f"Could not load existing CSV file {output_csv}: {e}")
+            logging.warning(f"Could not load existing CSV file {OUTPUT_CSV}: {e}")
     else:
         # Log message if no existing CSV file is found
         logging.info("No existing CSV file found, will process all files")
@@ -247,19 +252,18 @@ def write_all_files_csv(file_data_list: List[Optional[Dict[str, Union[str, int]]
             if file_data:
                 writer.writerow(file_data)
 
-def write_duplicates_csv(duplicates: Dict[str, List[Dict[str, Union[str, int]]]], duplicates_csv: str) -> None:
+def write_duplicates_csv(duplicates: Dict[str, List[Dict[str, Union[str, int]]]]) -> None:
     """
     Write duplicate files information to CSV
     
     Args:
         duplicates (Dict[str, List[Dict[str, Union[str, int]]]]): Dictionary of duplicate file groups
-        duplicates_csv (str): Path to output CSV file for duplicates
     """
     # Define CSV column headers including duplicate count
     headers: List[str] = ['sha256', 'filename', 'filepath', 'creation_time', 'file_size', 'duplicate_count']
     
     # Open CSV file for writing
-    with open(duplicates_csv, 'w', newline='', encoding='utf-8') as csvfile:
+    with open(DUPLICATES_CSV, 'w', newline='', encoding='utf-8') as csvfile:
         # Create CSV writer with specified headers
         writer = csv.DictWriter(csvfile, fieldnames=headers)
         # Write header row
@@ -281,16 +285,12 @@ def write_duplicates_csv(duplicates: Dict[str, List[Dict[str, Union[str, int]]]]
                 writer.writerow(row)
 
 def process_multiple_directories(directory_paths: List[str], 
-                               output_csv: str, 
-                               duplicates_csv: Optional[str] = None, 
                                max_workers: Optional[int] = None) -> List[Optional[Dict[str, Union[str, int]]]]:
     """
     Process multiple directories and generate file information with duplicate detection
     
     Args:
         directory_paths (List[str]): List of directory paths to process
-        output_csv (str): Path to output CSV file containing all file information
-        duplicates_csv (Optional[str]): Path to output CSV file containing duplicate file information
         max_workers (Optional[int]): Maximum number of worker processes to use
         
     Returns:
@@ -300,7 +300,7 @@ def process_multiple_directories(directory_paths: List[str],
     logging.info(f"Starting to process {len(directory_paths)} directories: {directory_paths}")
     
     # Load existing file cache to avoid reprocessing
-    file_cache: Dict[Tuple[str, int], Dict[str, Union[str, int]]] = load_existing_file_cache(output_csv)
+    file_cache: Dict[Tuple[str, int], Dict[str, Union[str, int]]] = load_existing_file_cache()
     
     # Collect all files from all directories
     logging.info("Collecting files from all directories...")
@@ -379,36 +379,33 @@ def process_multiple_directories(directory_paths: List[str],
                f"({skipped_count} files skipped due to caching)")
     
     # Write all files to CSV
-    logging.info(f"Writing all file information to {output_csv}")
-    write_all_files_csv(file_results, output_csv)
+    logging.info(f"Writing all file information to {OUTPUT_CSV}")
+    write_all_files_csv(file_results, OUTPUT_CSV)
     
     # Find and write duplicates if requested
-    if duplicates_csv:
-        logging.info("Finding duplicate files...")
-        duplicates = find_duplicates(file_results)
-        logging.info(f"Found {len(duplicates)} groups of duplicate files")
-        
-        if duplicates:
-            logging.info(f"Writing duplicate file information to {duplicates_csv}")
-            write_duplicates_csv(duplicates, duplicates_csv)
-        else:
-            logging.info("No duplicate files found")
+    logging.info("Finding duplicate files...")
+    duplicates = find_duplicates(file_results)
+    logging.info(f"Found {len(duplicates)} groups of duplicate files")
+    
+    if duplicates:
+        logging.info(f"Writing duplicate file information to {DUPLICATES_CSV}")
+        write_duplicates_csv(duplicates, DUPLICATES_CSV)
+    else:
+        logging.info("No duplicate files found")
     
     return file_results
 
-def generate_html_viewer(csv_file_path: str, output_html: str = "duplicate_viewer.html") -> None:
+def generate_html_viewer() -> None:
     """
     Generate an HTML page to view the first 10 groups of duplicate images
     
-    Args:
-        csv_file_path (str): Path to the duplicate files CSV
-        output_html (str): Output HTML file path
+        
     """
     # Read the CSV file
     groups = []
     current_group = []
     
-    with open(csv_file_path, 'r', encoding='utf-8') as csvfile:
+    with open(DUPLICATES_CSV, 'r', encoding='utf-8') as csvfile:
         reader = csv.DictReader(csvfile)
         
         # Group files by SHA256 hash
@@ -634,55 +631,41 @@ def generate_html_viewer(csv_file_path: str, output_html: str = "duplicate_viewe
 """
     
     # Write HTML to file
-    with open(output_html, 'w', encoding='utf-8') as f:
+    with open(OUTPUT_HTML, 'w', encoding='utf-8') as f:
         f.write(html_content)
     
-    print(f"HTML viewer generated: {output_html}")
+    print(f"HTML viewer generated: {OUTPUT_HTML}")
 
 
-def find_duplicate_file() -> None:
+def find_duplicate_file(directory_paths: List[str] ) -> None:
 
-    # Specify your directory paths (can be multiple)
-    directory_paths: List[str] = [
-        r"F:\\photo",
-        r"G:\\视频",  # Add more directories as needed
-        # r"D:\Documents"
-    ]
     
-    # Specify output CSV file paths
-    output_csv: str = r"G:\\file_list.csv"
-    duplicates_csv: Optional[str] = r"G:\duplicate_files.csv"  # Set to None if you don't want duplicates file
-    
-    logging.info("Script started")
+    logging.info("Script started")              
     
     # Generate file information CSV
-    process_multiple_directories(directory_paths, output_csv, duplicates_csv)
-    logging.info(f"All file information saved to {output_csv}")
-    if duplicates_csv:
-        logging.info(f"Duplicate file information saved to {duplicates_csv}")
-    print(f"All file information saved to {output_csv}")
-    if duplicates_csv:
-        print(f"Duplicate file information saved to {duplicates_csv}")
+    process_multiple_directories(directory_paths, OUTPUT_CSV, DUPLICATES_CSV)
+    logging.info(f"All file information saved to {OUTPUT_CSV}")
+    if DUPLICATES_CSV:
+        logging.info(f"Duplicate file information saved to {DUPLICATES_CSV}")
+    print(f"All file information saved to {OUTPUT_CSV}")
+    if DUPLICATES_CSV:
+        print(f"Duplicate file information saved to {DUPLICATES_CSV}")
 
 
-def refresh_duplicates_csv(csv_file_path: str, output_csv_path: str = None) -> None:
+def refresh_duplicates_csv() -> None:
     """
     Refresh the duplicates CSV file by removing entries for files that no longer exist
     and also removing all other entries with the same SHA256 value.
     
-    Args:
-        csv_file_path (str): Path to the input CSV file
-        output_csv_path (str, optional): Path to output CSV file. 
-                                       If None, overwrites the input file.
-    """
-    if output_csv_path is None:
-        output_csv_path = csv_file_path
+    
+    """    
+    output_csv_path = DUPLICATES_CSV
     
     # First pass: Identify which files still exist
     existing_files_by_sha256: Dict[str, List[dict]] = {}
     missing_sha256_set: Set[str] = set()
     
-    with open(csv_file_path, 'r', encoding='utf-8') as csvfile:
+    with open(DUPLICATES_CSV, 'r', encoding='utf-8') as csvfile:
         reader = csv.DictReader(csvfile)
         headers = reader.fieldnames
         
@@ -717,7 +700,7 @@ def refresh_duplicates_csv(csv_file_path: str, output_csv_path: str = None) -> N
         writer.writeheader()
         writer.writerows(valid_entries)
     
-    print(f"Refreshed {csv_file_path}. Kept {len(valid_entries)} entries.")
+    print(f"Refreshed {DUPLICATES_CSV}. Kept {len(valid_entries)} entries.")
 
 # You can call this function in your main code like:
 
@@ -725,7 +708,13 @@ def refresh_duplicates_csv(csv_file_path: str, output_csv_path: str = None) -> N
 
 # Example usage
 if __name__ == "__main__":
-    # find_duplicate_file()
-    refresh_duplicates_csv("e:\\workspace\\python-tool\\duplicate_files.csv")
+    # Specify your directory paths (can be multiple)
+    directory_paths: List[str] = [
+        r"F:\\photo",
+        r"G:\\视频",  # Add more directories as needed
+        # r"D:\Documents"
+    ]
+    find_duplicate_file(directory_paths)
+    refresh_duplicates_csv()
     # Generate the HTML viewer
-    generate_html_viewer("e:\\workspace\\python-tool\\duplicate_files.csv")
+    generate_html_viewer()

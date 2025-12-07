@@ -1,6 +1,7 @@
 import csv
 import logging
 import os
+import sys
 from typing import Dict, List, Tuple, Optional, Union
 from storage_base import StorageInterface
 
@@ -28,8 +29,10 @@ class CSVStorage(StorageInterface):
         
         if os.path.exists(OUTPUT_CSV):
             try:
+                logging.info(f"Loading existing file cache from {OUTPUT_CSV}")
                 with open(OUTPUT_CSV, 'r', encoding='utf-8') as csvfile:
                     reader = csv.DictReader(csvfile)
+                    count = 0
                     for row in reader:
                         if all(key in row for key in ['filepath', 'file_size', 'sha256']):
                             try:
@@ -41,10 +44,12 @@ class CSVStorage(StorageInterface):
                                     'file_size': int(row['file_size']),
                                     'sha256': row['sha256']
                                 }
+                                count += 1
                             except (ValueError, KeyError):
                                 continue
+                    logging.info(f"Loaded {count} entries from CSV cache")
             except Exception as e:
-                print(f"Warning: Could not load existing CSV file {OUTPUT_CSV}: {e}")
+                logging.warning(f"Could not load existing CSV file {OUTPUT_CSV}: {e}")
         
         return file_cache
     
@@ -52,6 +57,7 @@ class CSVStorage(StorageInterface):
         """Write all file information to CSV"""
         headers: List[str] = ['filename', 'filepath', 'creation_time', 'file_size', 'sha256']
         
+        logging.info(f"Saving {len([f for f in file_data_list if f])} files to {OUTPUT_CSV}")
         with open(OUTPUT_CSV, 'w', newline='', encoding='utf-8') as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=headers)
             writer.writeheader()
@@ -59,10 +65,14 @@ class CSVStorage(StorageInterface):
             for file_data in file_data_list:
                 if file_data:
                     writer.writerow(file_data)
-    
+        logging.info("File data saved successfully")
+
     def save_duplicates(self, duplicates: Dict[str, List[Dict[str, Union[str, int]]]]) -> None:
         """Write duplicate files information to CSV"""
         headers: List[str] = ['sha256', 'filename', 'filepath', 'creation_time', 'file_size', 'duplicate_count']
+        
+        total_duplicates = sum(len(files) for files in duplicates.values())
+        logging.info(f"Saving {total_duplicates} duplicate entries to {DUPLICATES_CSV}")
         
         with open(DUPLICATES_CSV, 'w', newline='', encoding='utf-8') as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=headers)
@@ -75,12 +85,15 @@ class CSVStorage(StorageInterface):
                     row['sha256'] = sha256
                     row['duplicate_count'] = duplicate_count
                     writer.writerow(row)
-    
+        logging.info("Duplicate files saved successfully")
+
     def refresh_duplicates(self) -> None:
         """Refresh the duplicates CSV file by removing entries for files that no longer exist"""
         if not os.path.exists(DUPLICATES_CSV):
+            logging.info("No duplicates CSV file found, skipping refresh")
             return
             
+        logging.info("Refreshing duplicates CSV file")
         # First pass: Identify which files still exist
         existing_files_by_sha256: Dict[str, List[dict]] = {}
         
@@ -100,23 +113,29 @@ class CSVStorage(StorageInterface):
         
         # Check which files exist and identify completely missing groups
         valid_entries = []
+        removed_count = 0
         for sha256, entries in existing_files_by_sha256.items():
             # Check if all files in this group exist
             all_files_exist = True
             for entry in entries:
                 if not os.path.exists(entry['filepath']):
                     all_files_exist = False
+                    logging.debug(f"File no longer exists: {entry['filepath']}")
                     break
             
             # Only keep entries if all files in the group exist
             if all_files_exist:
                 valid_entries.extend(entries)
+            else:
+                removed_count += len(entries)
         
         # Write back the filtered entries
         with open(DUPLICATES_CSV, 'w', newline='', encoding='utf-8') as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=headers)
             writer.writeheader()
             writer.writerows(valid_entries)
+        
+        logging.info(f"Refreshed duplicates CSV. Removed {removed_count} invalid entries, kept {len(valid_entries)} valid entries")
 
     def get_duplicate_groups(self) -> List[List[Dict[str, Union[str, int]]]]:
         """Get duplicate file groups from CSV for HTML viewer"""
@@ -125,8 +144,10 @@ class CSVStorage(StorageInterface):
         prev_sha256 = None
         
         if not os.path.exists(DUPLICATES_CSV):
+            logging.info("No duplicates CSV file found")
             return []
-            
+        
+        logging.info(f"Loading duplicate groups from {DUPLICATES_CSV}")
         with open(DUPLICATES_CSV, 'r', encoding='utf-8') as csvfile:
             reader = csv.DictReader(csvfile)
             
@@ -149,4 +170,5 @@ class CSVStorage(StorageInterface):
             if current_group:
                 groups.append(current_group)
         
+        logging.info(f"Loaded {len(groups)} duplicate groups")
         return groups

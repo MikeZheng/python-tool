@@ -1,457 +1,850 @@
-<html lang="en">
+<!DOCTYPE html>
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Duplicate Files Viewer</title>
+    <title>重复文件去重系统</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .page { display: none; }
+        .page.active { display: block; }
+        .nav-link.active {
+            border-color: #4f46e5;
+            color: #111827;
+        }
+        .file-card-earliest {
+            border-color: #22c55e;
+            background-color: #f0fdf4;
+        }
+        .toast {
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+    </style>
 </head>
-<body class="bg-gray-100 font-sans mx-auto px-4 py-5 max-w-7xl">
-    <!-- Top Navigation Menu -->
-    <nav class="bg-white shadow mb-6 rounded-lg">
-        <div class="px-4 sm:px-6 lg:px-8">
+<body class="bg-gray-100 font-sans min-h-screen">
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2"></div>
+
+    <!-- Navigation -->
+    <nav class="bg-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-16">
                 <div class="flex">
                     <div class="flex-shrink-0 flex items-center">
-                        <span class="font-bold text-indigo-600">FileManager</span>
+                        <span class="font-bold text-xl text-indigo-600">文件去重系统</span>
                     </div>
                     <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
-                        <!-- Current: "border-indigo-500 text-gray-900", Default: "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700" -->
-                        <a href="#" class="border-indigo-500 text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                            Home
+                        <a href="#" data-page="dashboard" class="nav-link active border-b-2 border-transparent text-gray-500 hover:text-gray-700 inline-flex items-center px-1 pt-1 text-sm font-medium">
+                            首页
                         </a>
-                        <a href="#" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                            Photos
+                        <a href="#" data-page="config" class="nav-link border-b-2 border-transparent text-gray-500 hover:text-gray-700 inline-flex items-center px-1 pt-1 text-sm font-medium">
+                            配置
                         </a>
-                        <a href="#" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                            Videos
+                        <a href="#" data-page="scan" class="nav-link border-b-2 border-transparent text-gray-500 hover:text-gray-700 inline-flex items-center px-1 pt-1 text-sm font-medium">
+                            扫描目录
                         </a>
-                        <a href="#" class="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                            Help
+                        <a href="#" data-page="duplicates" class="nav-link border-b-2 border-transparent text-gray-500 hover:text-gray-700 inline-flex items-center px-1 pt-1 text-sm font-medium">
+                            重复文件
+                        </a>
+                        <a href="#" data-page="history" class="nav-link border-b-2 border-transparent text-gray-500 hover:text-gray-700 inline-flex items-center px-1 pt-1 text-sm font-medium">
+                            操作记录
                         </a>
                     </div>
+                </div>
+                <div class="flex items-center">
+                    <span id="scan-status-indicator" class="hidden px-3 py-1 bg-yellow-100 text-yellow-800 text-sm rounded-full flex items-center gap-2">
+                        <span class="animate-pulse w-2 h-2 bg-yellow-500 rounded-full"></span>
+                        扫描中...
+                    </span>
                 </div>
             </div>
         </div>
     </nav>
 
-    <h1 class="text-3xl font-bold text-gray-800 mb-6">Duplicate Files Viewer</h1>
-    
-    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 rounded">
-        <div class="flex">
-            <div class="flex-shrink-0">
-                <svg class="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
-                </svg>
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+        <!-- Dashboard Page -->
+        <div id="page-dashboard" class="page">
+            <h1 class="text-3xl font-bold text-gray-900 mb-6">仪表盘</h1>
+
+            <!-- Stats Cards -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="text-sm font-medium text-gray-500">重复文件组</div>
+                    <div id="stat-duplicate-groups" class="mt-2 text-3xl font-bold text-indigo-600">-</div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="text-sm font-medium text-gray-500">扫描目录数</div>
+                    <div id="stat-directories" class="mt-2 text-3xl font-bold text-green-600">-</div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="text-sm font-medium text-gray-500">照片数量</div>
+                    <div id="stat-photos" class="mt-2 text-3xl font-bold text-blue-600">-</div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="text-sm font-medium text-gray-500">视频数量</div>
+                    <div id="stat-videos" class="mt-2 text-3xl font-bold text-purple-600">-</div>
+                </div>
             </div>
-            <div class="ml-3">
-                <p class="text-sm text-yellow-700">
-                    <strong>Note:</strong> This page dynamically loads duplicate files from the backend. 
-                    Images are displayed using file paths - they will only appear if the paths are accessible from this HTML file.
-                </p>
+
+            <!-- Additional Stats -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-6">
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="text-sm font-medium text-gray-500">总文件数</div>
+                    <div id="stat-total-files" class="mt-2 text-2xl font-bold text-gray-900">-</div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="text-sm font-medium text-gray-500">重复文件总数</div>
+                    <div id="stat-duplicate-files" class="mt-2 text-2xl font-bold text-orange-600">-</div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="text-sm font-medium text-gray-500">已释放空间</div>
+                    <div id="stat-space-saved" class="mt-2 text-2xl font-bold text-emerald-600">-</div>
+                </div>
+            </div>
+
+            <!-- Recent Activity -->
+            <div class="bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h2 class="text-lg font-semibold text-gray-900">最近操作</h2>
+                </div>
+                <div id="recent-activity" class="px-6 py-4">
+                    <div class="text-center text-gray-500 py-4">加载中...</div>
+                </div>
             </div>
         </div>
-    </div>
 
-    <div class="bg-blue-50 p-4 rounded-lg mb-6">
-        <h3 class="text-lg font-medium text-blue-800 mb-3">Scan New Directories</h3>
-        <button id="scan-button" class="px-4 py-2 bg-green-500 hover:bg-green-600 text-white font-medium rounded-md transition duration-150 ease-in-out">
-            Select Directory to Scan
-        </button>
-        <div id="scan-status" class="mt-3 hidden"></div>
-    </div>
-    
-    <div id="pagination" class="flex justify-center gap-2 my-6">
-        <button id="prev-page" class="px-4 py-2 bg-blue-600 text-white font-medium rounded-md disabled:bg-gray-400 disabled:cursor-not-allowed" disabled>
-            Previous
-        </button>
-        <span class="self-center font-bold">Page <span id="current-page">1</span></span>
-        <button id="next-page" class="px-4 py-2 bg-blue-600 text-white font-medium rounded-md">
-            Next
-        </button>
-    </div>
-    
-    <div id="content">
-        <div class="text-center py-5 italic text-gray-600">Loading duplicate files...</div>
-    </div>
-    
-    <div id="pagination-bottom" class="flex justify-center gap-2 my-6">
-        <button id="prev-page-bottom" class="px-4 py-2 bg-blue-600 text-white font-medium rounded-md disabled:bg-gray-400 disabled:cursor-not-allowed" disabled>
-            Previous
-        </button>
-        <span class="self-center font-bold">Page <span id="current-page-bottom">1</span></span>
-        <button id="next-page-bottom" class="px-4 py-2 bg-blue-600 text-white font-medium rounded-md">
-            Next
-        </button>
-    </div>
+        <!-- Config Page -->
+        <div id="page-config" class="page">
+            <h1 class="text-3xl font-bold text-gray-900 mb-6">配置</h1>
 
-    <script>
-        let currentPage = 1;
-        
-        function deleteFile(filePath, element) {
-            // Fix escaped backslashes in the file path
-            const cleanPath = filePath.replace(/\\\\/g, '\\');
-            if (confirm("Are you sure you want to delete this file?\n" + cleanPath)) {
-                // Call Python backend
-                fetch('http://localhost:5000/delete-file', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({filePath: cleanPath})
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        element.closest('.file-card').classList.add('opacity-50', 'line-through');
-                        element.disabled = true;
-                        element.textContent = 'Deleted';
-                    } else {
-                        alert('Error deleting file: ' + data.message);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('Failed to connect to backend service');
-                });
-            }
-        }
-        
-        function formatFileSize(bytes) {
-            if (bytes < 1024) {
-                return bytes + ' bytes';
-            } else if (bytes < 1024 * 1024) {
-                return Math.floor(bytes / 1024) + ' KB';
-            } else {
-                return Math.floor(bytes / (1024 * 1024)) + ' MB';
-            }
-        }
-        
-        function isImageFile(filename) {
-            const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff'];
-            const ext = filename.toLowerCase().substring(filename.lastIndexOf('.'));
-            return imageExtensions.includes(ext);
-        }
-        
-        function renderGroups(groups) {
-            const contentDiv = document.getElementById('content');
-            
-            if (groups.length === 0) {
-                contentDiv.innerHTML = '<div class="text-center py-5 italic text-gray-600">No duplicate files found.</div>';
-                return;
-            }
-            
-            let html = '';
-            
-            groups.forEach((group, index) => {
-                const sha256 = group[0].sha256;
-                const groupNumber = (currentPage - 1) * 20 + index + 1;
-                
-                html += `
-                <div class="bg-white rounded-lg p-5 mb-6 shadow">
-                    <div class="border-b-2 border-gray-200 pb-3 mb-4">
-                        <div class="text-xl font-bold text-gray-800">Group ${groupNumber} (${group.length} duplicates)</div>
-                        <div class="font-mono text-sm text-gray-600 break-all">SHA256: ${sha256}</div>
+            <div class="bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h2 class="text-lg font-semibold text-gray-900">存储配置</h2>
+                </div>
+                <div class="p-6 space-y-6">
+                    <!-- Storage Directory -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            去重文件存储目录
+                        </label>
+                        <div class="flex gap-4">
+                            <input type="text" id="storage-directory"
+                                class="flex-1 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 px-4 py-2"
+                                placeholder="例如: F:\整理后的文件">
+                            <button onclick="selectStorageDirectory()"
+                                class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-md">
+                                浏览
+                            </button>
+                        </div>
+                        <p class="mt-1 text-sm text-gray-500">去重后的文件将按年/月目录结构存储在此目录下</p>
                     </div>
-                    <div class="flex flex-wrap gap-5">
-                `;
-                
-                group.forEach(file => {
-                    const isImage = isImageFile(file.filename);
-                    const jsSafePath = file.filepath.replace(/\\/g, '\\\\');
-                    const fileSize = formatFileSize(file.file_size);
-                    
-                    html += `
-                    <div class="file-card border border-gray-300 rounded p-3 w-52 bg-gray-50">
-                    `;
-                    
-                    if (isImage) {
-                        html += `<img src="${file.filepath}" alt="${file.filename}" class="w-full h-36 object-cover rounded" onerror="this.style.display='none';">`;
-                    } else {
-                        html += `<div class="w-full h-36 flex items-center justify-center bg-gray-200 rounded text-gray-500">No preview</div>`;
-                    }
-                    
-                    html += `
-                        <div class="mt-3 text-xs">
-                            <div class="font-bold mb-1 break-words">${file.filename}</div>
-                            <div class="text-gray-600 mb-1 break-words">${file.filepath}</div>
-                            <div class="text-gray-500 mb-0.5">Created: ${file.creation_time}</div>
-                            <div class="text-gray-500 mb-1">${fileSize}</div>
-                            <button class="w-full px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded text-xs mt-2" onclick="deleteFile('${jsSafePath}', this)">Delete File</button>
+
+                    <!-- Backup Directory -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            备份目录
+                        </label>
+                        <div class="flex gap-4">
+                            <input type="text" id="backup-directory"
+                                class="flex-1 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 px-4 py-2"
+                                placeholder="例如: F:\备份">
+                            <button onclick="selectBackupDirectory()"
+                                class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-md">
+                                浏览
+                            </button>
+                        </div>
+                        <p class="mt-1 text-sm text-gray-500">被替换的重复文件将移动到此目录作为备份</p>
+                    </div>
+
+                    <!-- Directory Structure Preview -->
+                    <div class="bg-gray-50 rounded-md p-4">
+                        <h3 class="text-sm font-medium text-gray-700 mb-2">目录结构预览</h3>
+                        <div id="directory-preview" class="font-mono text-sm text-gray-600">
+                            <div>存储目录/</div>
+                            <div class="ml-4">├── 2023/</div>
+                            <div class="ml-8">├── 01/</div>
+                            <div class="ml-8">├── 02/</div>
+                            <div class="ml-8">└── 03/</div>
+                            <div class="ml-4">└── 2024/</div>
+                            <div class="ml-8">├── 01/</div>
+                            <div class="ml-8">└── 02/</div>
                         </div>
                     </div>
-                    `;
-                });
-                
-                html += `
+
+                    <!-- Save Button -->
+                    <div class="flex justify-end">
+                        <button onclick="saveConfig()"
+                            class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-md">
+                            保存配置
+                        </button>
                     </div>
                 </div>
-                `;
-            });
-            
-            contentDiv.innerHTML = html;
-        }
-        
-        function updatePagination(paginationInfo) {
-            const { page, total_pages, has_more } = paginationInfo;
-            
-            // Update top pagination controls
-            document.getElementById('current-page').textContent = page;
-            document.getElementById('prev-page').disabled = page <= 1;
-            document.getElementById('next-page').disabled = !has_more;
-            
-            // Update bottom pagination controls
-            document.getElementById('current-page-bottom').textContent = page;
-            document.getElementById('prev-page-bottom').disabled = page <= 1;
-            document.getElementById('next-page-bottom').disabled = !has_more;
-        }
-        
-        function loadDuplicates(page = 1) {
-            const contentDiv = document.getElementById('content');
-            contentDiv.innerHTML = '<div class="text-center py-5 italic text-gray-600">Loading duplicate files...</div>';
-            
-            fetch(`http://localhost:5000/duplicates?page=${page}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        renderGroups(data.data);
-                        updatePagination(data.pagination);
-                        currentPage = page;
-                    } else {
-                        contentDiv.innerHTML = `<div class="bg-red-50 text-red-800 p-4 rounded my-4">Error loading duplicates: ${data.message}</div>`;
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    contentDiv.innerHTML = `<div class="bg-red-50 text-red-800 p-4 rounded my-4">Failed to connect to backend service: ${error.message}</div>`;
-                });
-        }
-        
-        // Set up pagination event listeners
-        document.getElementById('prev-page').addEventListener('click', () => {
-            if (currentPage > 1) {
-                loadDuplicates(currentPage - 1);
-            }
-        });
-        
-        document.getElementById('next-page').addEventListener('click', () => {
-            loadDuplicates(currentPage + 1);
-        });
-        
-        document.getElementById('prev-page-bottom').addEventListener('click', () => {
-            if (currentPage > 1) {
-                loadDuplicates(currentPage - 1);
-            }
-        });
-        
-        document.getElementById('next-page-bottom').addEventListener('click', () => {
-            loadDuplicates(currentPage + 1);
-        });
-        
-        // Load initial data
-        loadDuplicates();
+            </div>
+        </div>
 
-        document.getElementById('scan-button').addEventListener('click', function() {
-            // In a web browser, we can't directly select directories
-            // We'll prompt the user to enter a directory path
-            const dirPath = prompt("Enter the full path of the directory to scan:");
-            if (dirPath) {
-                scanDirectory(dirPath);
-            }
-        });
+        <!-- Scan Page -->
+        <div id="page-scan" class="page">
+            <h1 class="text-3xl font-bold text-gray-900 mb-6">扫描目录</h1>
 
-        function scanDirectory(dirPath) {
-            const statusDiv = document.getElementById('scan-status');
-            statusDiv.classList.remove('hidden');
-            statusDiv.innerHTML = `<div class="text-center py-2 italic text-gray-600">Scanning directory: ${dirPath}...</div>`;
-            
-            // Disable the scan button during scanning
-            document.getElementById('scan-button').disabled = true;
-            
-            // Send request to backend
-            fetch('http://localhost:5000/scan-directory', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({directory: dirPath})
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    statusDiv.innerHTML = `<div class="text-green-600">Scan completed successfully! Found ${data.files_processed} files.</div>`;
-                    // Reload the duplicates view
-                    loadDuplicates();
-                } else {
-                    statusDiv.innerHTML = `<div class="text-red-600">Scan failed: ${data.message}</div>`;
+            <!-- Add New Directory -->
+            <div class="bg-white rounded-lg shadow mb-6">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h2 class="text-lg font-semibold text-gray-900">添加新目录</h2>
+                </div>
+                <div class="p-6">
+                    <div class="flex gap-4">
+                        <input type="text" id="new-directory"
+                            class="flex-1 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 px-4 py-2"
+                            placeholder="输入目录路径">
+                        <button onclick="addDirectory()"
+                            class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-md">
+                            扫描
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scan Progress -->
+            <div id="scan-progress-section" class="hidden bg-blue-50 rounded-lg shadow mb-6 p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-semibold text-blue-900">扫描进度</h2>
+                    <span id="progress-percent" class="text-sm font-bold text-blue-700">0%</span>
+                </div>
+                <div class="w-full bg-blue-200 rounded-full h-4 mb-4">
+                    <div id="progress-bar" class="bg-blue-600 h-4 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+                <div class="text-sm text-blue-800">
+                    <div>当前文件: <span id="progress-file" class="font-mono">-</span></div>
+                    <div>已处理: <span id="progress-processed">0</span> / <span id="progress-total">0</span></div>
+                </div>
+            </div>
+
+            <!-- Scanned Directories List -->
+            <div class="bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h2 class="text-lg font-semibold text-gray-900">已扫描目录</h2>
+                </div>
+                <div id="directories-list" class="divide-y divide-gray-200">
+                    <div class="text-center text-gray-500 py-8">加载中...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Duplicates Page -->
+        <div id="page-duplicates" class="page">
+            <div class="flex justify-between items-center mb-6">
+                <h1 class="text-3xl font-bold text-gray-900">重复文件</h1>
+                <button onclick="batchDeduplicate()"
+                    class="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-md">
+                    批量去重
+                </button>
+            </div>
+
+            <!-- Filter -->
+            <div class="bg-white rounded-lg shadow mb-6 p-4">
+                <div class="flex gap-4 items-center">
+                    <span class="text-sm font-medium text-gray-700">筛选:</span>
+                    <select id="filter-type" onchange="filterDuplicates()"
+                        class="border border-gray-300 rounded-md px-3 py-2 text-sm">
+                        <option value="all">全部</option>
+                        <option value="photo">仅照片</option>
+                        <option value="video">仅视频</option>
+                    </select>
+                    <div class="flex items-center gap-2">
+                        <input type="checkbox" id="select-all" onchange="toggleSelectAll()" class="w-4 h-4 text-indigo-600 rounded">
+                        <label for="select-all" class="text-sm text-gray-700">全选</label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Duplicate Groups -->
+            <div id="duplicate-groups" class="space-y-6">
+                <div class="text-center text-gray-500 py-8">加载中...</div>
+            </div>
+
+            <!-- Pagination -->
+            <div id="duplicates-pagination" class="flex justify-center items-center gap-4 mt-6">
+                <button id="duplicates-prev" onclick="loadDuplicatesPage(currentDuplicatesPage - 1)"
+                    class="px-4 py-2 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50" disabled>
+                    上一页
+                </button>
+                <span class="text-gray-700">第 <span id="duplicates-current-page">1</span> 页 / 共 <span id="duplicates-total-pages">-</span> 页</span>
+                <button id="duplicates-next" onclick="loadDuplicatesPage(currentDuplicatesPage + 1)"
+                    class="px-4 py-2 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50">
+                    下一页
+                </button>
+            </div>
+        </div>
+
+        <!-- History Page -->
+        <div id="page-history" class="page">
+            <h1 class="text-3xl font-bold text-gray-900 mb-6">操作记录</h1>
+
+            <div class="bg-white rounded-lg shadow overflow-hidden">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">操作时间</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">类型</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">SHA256</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">保留文件</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">备份文件数</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">释放空间</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-table-body" class="divide-y divide-gray-200">
+                        <tr>
+                            <td colspan="6" class="px-6 py-8 text-center text-gray-500">加载中...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- History Pagination -->
+            <div id="history-pagination" class="flex justify-center items-center gap-4 mt-6">
+                <button id="history-prev" onclick="loadHistoryPage(currentHistoryPage - 1)"
+                    class="px-4 py-2 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50" disabled>
+                    上一页
+                </button>
+                <span class="text-gray-700">第 <span id="history-current-page">1</span> 页 / 共 <span id="history-total-pages">-</span> 页</span>
+                <button id="history-next" onclick="loadHistoryPage(currentHistoryPage + 1)"
+                    class="px-4 py-2 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50">
+                    下一页
+                </button>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        // API Base URL
+        const API_BASE = 'http://localhost:5000/api';
+
+        // Global State
+        let currentPage = 'dashboard';
+        let currentDuplicatesPage = 1;
+        let currentHistoryPage = 1;
+        let selectedDuplicates = new Set();
+        let allDuplicateGroups = [];
+
+        // ==================== Utility Functions ====================
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+            if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+            return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+        }
+
+        function formatSpace(bytes) {
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+            if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+            return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+        }
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const bgColor = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500';
+            toast.className = `toast ${bgColor} text-white px-4 py-3 rounded-lg shadow-lg`;
+            toast.textContent = message;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        // ==================== Navigation ====================
+        function showPage(pageId) {
+            // Hide all pages
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            // Show target page
+            document.getElementById(`page-${pageId}`).classList.add('active');
+            // Update nav links
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('active');
+                if (link.dataset.page === pageId) {
+                    link.classList.add('active');
                 }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                statusDiv.innerHTML = `<div class="text-red-600">Failed to connect to backend service</div>`;
-            })
-            .finally(() => {
-                document.getElementById('scan-button').disabled = false;
             });
+            currentPage = pageId;
+            // Load page data
+            loadPageData(pageId);
         }
 
-        // Add these functions to the existing script section
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                showPage(link.dataset.page);
+            });
+        });
 
-        // Function to load and display photos sorted by creation time (descending)
-        function loadPhotos() {
-            // Update the header
-            document.querySelector('h1').textContent = 'Photos';
-            
-            // Show loading message
-            const contentDiv = document.getElementById('content');
-            contentDiv.innerHTML = '<div class="text-center py-5 italic text-gray-600">Loading photos...</div>';
-            
-            // Fetch all duplicates (you might want a dedicated photos endpoint in the future)
-            fetch('http://localhost:5000/duplicates?page=1')
-                .then(response => response.json())
+        function loadPageData(pageId) {
+            switch(pageId) {
+                case 'dashboard':
+                    loadDashboard();
+                    break;
+                case 'config':
+                    loadConfig();
+                    break;
+                case 'scan':
+                    loadDirectories();
+                    startProgressPolling();
+                    break;
+                case 'duplicates':
+                    loadDuplicatesPage(1);
+                    break;
+                case 'history':
+                    loadHistoryPage(1);
+                    break;
+            }
+        }
+
+        // ==================== Dashboard ====================
+        function loadDashboard() {
+            fetch(`${API_BASE}/dashboard/stats`)
+                .then(r => r.json())
                 .then(data => {
                     if (data.success) {
-                        // Flatten all groups into a single array of files
-                        let allFiles = [];
-                        data.data.forEach(group => {
-                            allFiles = allFiles.concat(group);
-                        });
-                        
-                        // Filter for image files only
-                        const imageFiles = allFiles.filter(file => {
-                            const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff'];
-                            const ext = file.filename.toLowerCase().substring(file.filename.lastIndexOf('.'));
-                            return imageExtensions.includes(ext);
-                        });
-                        
-                        // Sort by creation time (descending - newest first)
-                        imageFiles.sort((a, b) => {
-                            // Assuming creation_time is in a parseable format
-                            return new Date(b.creation_time) - new Date(a.creation_time);
-                        });
-                        
-                        renderPhotos(imageFiles);
-                    } else {
-                        contentDiv.innerHTML = `<div class="bg-red-50 text-red-800 p-4 rounded my-4">Error loading photos: ${data.message}</div>`;
+                        const stats = data.data;
+                        document.getElementById('stat-duplicate-groups').textContent = stats.duplicate_groups || 0;
+                        document.getElementById('stat-directories').textContent = stats.scanned_directories || 0;
+                        document.getElementById('stat-photos').textContent = stats.photo_count || 0;
+                        document.getElementById('stat-videos').textContent = stats.video_count || 0;
+                        document.getElementById('stat-total-files').textContent = stats.total_files || 0;
+                        document.getElementById('stat-duplicate-files').textContent = stats.duplicate_files || 0;
+                        document.getElementById('stat-space-saved').textContent = formatSpace(stats.space_saved || 0);
                     }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    contentDiv.innerHTML = `<div class="bg-red-50 text-red-800 p-4 rounded my-4">Failed to connect to backend service: ${error.message}</div>`;
+                });
+
+            // Load recent history
+            fetch(`${API_BASE}/history?page=1&limit=5`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        const activityHtml = data.data.operations.length > 0
+                            ? data.data.operations.map(op => `
+                                <div class="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                                    <div>
+                                        <div class="text-sm font-medium text-gray-900">去重操作</div>
+                                        <div class="text-xs text-gray-500">${new Date(op.created_at).toLocaleString('zh-CN')}</div>
+                                    </div>
+                                    <div class="text-sm text-green-600">+${formatSpace(op.space_saved || 0)}</div>
+                                </div>
+                            `).join('')
+                            : '<div class="text-center text-gray-500 py-4">暂无操作记录</div>';
+                        document.getElementById('recent-activity').innerHTML = activityHtml;
+                    }
                 });
         }
 
-        // Function to render photos in a grid layout
-        function renderPhotos(photos) {
-            const contentDiv = document.getElementById('content');
-            
-            if (photos.length === 0) {
-                contentDiv.innerHTML = '<div class="text-center py-5 italic text-gray-600">No photos found.</div>';
+        // ==================== Config ====================
+        function loadConfig() {
+            fetch(`${API_BASE}/config`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('storage-directory').value = data.data.storage_directory || '';
+                        document.getElementById('backup-directory').value = data.data.backup_directory || '';
+                    }
+                });
+        }
+
+        function selectStorageDirectory() {
+            const path = prompt('请输入存储目录路径:');
+            if (path) document.getElementById('storage-directory').value = path;
+        }
+
+        function selectBackupDirectory() {
+            const path = prompt('请输入备份目录路径:');
+            if (path) document.getElementById('backup-directory').value = path;
+        }
+
+        function saveConfig() {
+            const storageDir = document.getElementById('storage-directory').value.trim();
+            const backupDir = document.getElementById('backup-directory').value.trim();
+
+            if (!storageDir) {
+                showToast('请设置存储目录', 'error');
                 return;
             }
-            
-            let html = `
-            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            `;
-            
-            photos.forEach(photo => {
-                const fileSize = formatFileSize(photo.file_size);
-                const jsSafePath = photo.filepath.replace(/\\/g, '\\\\');
-                
-                html += `
-                <div class="file-card bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
-                    <div class="relative pb-[100%]"> <!-- Square container for image -->
-                        <img src="${photo.filepath}" alt="${photo.filename}" 
-                            class="absolute h-full w-full object-cover" 
-                            onerror="this.parentElement.innerHTML='<div class=\"absolute inset-0 flex items-center justify-center bg-gray-200 text-gray-500\">No preview</div>';">
-                    </div>
-                    <div class="p-3">
-                        <div class="font-bold text-sm mb-1 truncate">${photo.filename}</div>
-                        <div class="text-gray-500 text-xs mb-1">${photo.creation_time}</div>
-                        <div class="text-gray-500 text-xs mb-2">${fileSize}</div>
-                        <button class="w-full px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded text-xs" 
-                                onclick="deleteFile('${jsSafePath}', this)">Delete</button>
-                    </div>
-                </div>
-                `;
+
+            fetch(`${API_BASE}/config`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    storage_directory: storageDir,
+                    backup_directory: backupDir
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('配置保存成功');
+                } else {
+                    showToast('保存失败: ' + data.error, 'error');
+                }
             });
-            
-            html += `
-            </div>
-            `;
-            
-            contentDiv.innerHTML = html;
         }
 
-        // Add event listeners to navigation links
-        document.addEventListener('DOMContentLoaded', function() {
-            // Get navigation links
-            const navLinks = document.querySelectorAll('nav a');
-            
-            // Home link
-            navLinks[0].addEventListener('click', function(e) {
-                e.preventDefault();
-                // Reset to original view
-                document.querySelector('h1').textContent = 'Duplicate Files Viewer';
-                loadDuplicates();
+        // ==================== Scan & Directories ====================
+        function addDirectory() {
+            const dirPath = document.getElementById('new-directory').value.trim();
+            if (!dirPath) {
+                showToast('请输入目录路径', 'error');
+                return;
+            }
+
+            fetch(`${API_BASE}/directories`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ directory: dirPath })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('开始扫描');
+                    document.getElementById('new-directory').value = '';
+                    loadDirectories();
+                } else {
+                    showToast('添加失败: ' + data.error, 'error');
+                }
             });
-            
-            // Photos link
-            navLinks[1].addEventListener('click', function(e) {
-                e.preventDefault();
-                loadPhotos();
-            });
-            
-            // Videos link
-            navLinks[2].addEventListener('click', function(e) {
-                e.preventDefault();
-                // Similar implementation for videos
-                loadVideos();
-            });
-            
-            // Help link
-            navLinks[3].addEventListener('click', function(e) {
-                e.preventDefault();
-                // Show help content
-                showHelp();
+        }
+
+        function loadDirectories() {
+            fetch(`${API_BASE}/directories`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        if (data.data.length === 0) {
+                            document.getElementById('directories-list').innerHTML =
+                                '<div class="text-center text-gray-500 py-8">暂无扫描目录</div>';
+                            return;
+                        }
+
+                        document.getElementById('directories-list').innerHTML = data.data.map(dir => `
+                            <div class="px-6 py-4 flex items-center justify-between hover:bg-gray-50">
+                                <div class="flex-1">
+                                    <div class="text-sm font-medium text-gray-900 truncate">${dir.directory_path}</div>
+                                    <div class="text-xs text-gray-500 mt-1">
+                                        文件: ${dir.total_files} | 照片: ${dir.photo_count} | 视频: ${dir.video_count} | 重复: ${dir.duplicate_count}
+                                    </div>
+                                    <div class="text-xs text-gray-400">扫描时间: ${new Date(dir.scanned_at).toLocaleString('zh-CN')}</div>
+                                </div>
+                                <div class="flex gap-2">
+                                    <button onclick="rescanDirectory(${dir.id})"
+                                        class="px-3 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 text-sm rounded">
+                                        重新扫描
+                                    </button>
+                                    <button onclick="deleteDirectory(${dir.id})"
+                                        class="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-700 text-sm rounded">
+                                        删除
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('');
+                    }
+                });
+        }
+
+        function rescanDirectory(id) {
+            fetch(`${API_BASE}/directories/${id}/rescan`, { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast('重新扫描已开始');
+                    } else {
+                        showToast('失败: ' + data.error, 'error');
+                    }
+                });
+        }
+
+        function deleteDirectory(id) {
+            if (!confirm('确定删除此目录及其文件记录吗？')) return;
+
+            fetch(`${API_BASE}/directories/${id}`, { method: 'DELETE' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast('目录已删除');
+                        loadDirectories();
+                    } else {
+                        showToast('删除失败: ' + data.error, 'error');
+                    }
+                });
+        }
+
+        let progressInterval = null;
+
+        function startProgressPolling() {
+            stopProgressPolling();
+            progressInterval = setInterval(updateScanProgress, 1000);
+            updateScanProgress();
+        }
+
+        function stopProgressPolling() {
+            if (progressInterval) {
+                clearInterval(progressInterval);
+                progressInterval = null;
+            }
+        }
+
+        function updateScanProgress() {
+            fetch(`${API_BASE}/scan/progress`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success && data.data) {
+                        const progress = data.data;
+                        const isScanning = progress.is_scanning;
+                        const indicator = document.getElementById('scan-status-indicator');
+                        const section = document.getElementById('scan-progress-section');
+
+                        if (isScanning) {
+                            indicator.classList.remove('hidden');
+                            section.classList.remove('hidden');
+                            const percent = progress.percent || 0;
+                            document.getElementById('progress-bar').style.width = percent + '%';
+                            document.getElementById('progress-percent').textContent = percent + '%';
+                            document.getElementById('progress-file').textContent = progress.current_file || '-';
+                            document.getElementById('progress-processed').textContent = progress.processed_files || 0;
+                            document.getElementById('progress-total').textContent = progress.total_files || 0;
+                        } else {
+                            indicator.classList.add('hidden');
+                            section.classList.add('hidden');
+                        }
+                    }
+                });
+        }
+
+        // Stop polling when leaving scan page
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.addEventListener('click', (e) => {
+                    if (link.dataset.page !== 'scan') {
+                        stopProgressPolling();
+                    }
+                });
             });
         });
 
-        // Function to load videos (similar to photos)
-        function loadVideos() {
-            document.querySelector('h1').textContent = 'Videos';
-            const contentDiv = document.getElementById('content');
-            contentDiv.innerHTML = '<div class="text-center py-5 italic text-gray-600">Video functionality not yet implemented.</div>';
+        // ==================== Duplicates ====================
+        function loadDuplicatesPage(page) {
+            currentDuplicatesPage = page;
+            selectedDuplicates.clear();
+            document.getElementById('select-all').checked = false;
+
+            fetch(`${API_BASE}/duplicates?page=${page}&limit=20`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        allDuplicateGroups = data.data;
+                        const filterType = document.getElementById('filter-type').value;
+                        const filteredGroups = filterDuplicatesByType(data.data, filterType);
+
+                        document.getElementById('duplicate-groups').innerHTML = filteredGroups.length > 0
+                            ? filteredGroups.map(renderDuplicateGroup).join('')
+                            : '<div class="text-center text-gray-500 py-8">没有找到重复文件</div>';
+
+                        // Update pagination
+                        document.getElementById('duplicates-current-page').textContent = page;
+                        document.getElementById('duplicates-total-pages').textContent = data.pagination.total_pages;
+                        document.getElementById('duplicates-prev').disabled = page <= 1;
+                        document.getElementById('duplicates-next').disabled = page >= data.pagination.total_pages;
+                    }
+                });
         }
 
-        // Function to show help content
-        function showHelp() {
-            document.querySelector('h1').textContent = 'Help';
-            const contentDiv = document.getElementById('content');
-            contentDiv.innerHTML = `
-                <div class="bg-white rounded-lg shadow p-6">
-                    <h2 class="text-2xl font-bold mb-4">Help Documentation</h2>
-                    <div class="prose max-w-none">
-                        <h3>Overview</h3>
-                        <p>This application helps you find and manage duplicate files on your system.</p>
-                        
-                        <h3>Features</h3>
-                        <ul>
-                            <li><strong>Duplicate Detection:</strong> Finds files with identical content using SHA256 hashing</li>
-                            <li><strong>File Management:</strong> Delete duplicate files directly from the interface</li>
-                            <li><strong>Photo Gallery:</strong> View photos sorted by creation date</li>
-                            <li><strong>Directory Scanning:</strong> Add new directories to scan for duplicates</li>
-                        </ul>
-                        
-                        <h3>How to Use</h3>
-                        <ol>
-                            <li>Navigate to different sections using the top menu</li>
-                            <li>Use the "Scan New Directories" section to add folders for scanning</li>
-                            <li>Delete unwanted duplicate files using the delete buttons</li>
-                        </ol>
+        function filterDuplicatesByType(groups, type) {
+            if (type === 'all') return groups;
+            return groups.filter(group => group.some(f => f.file_type === type));
+        }
+
+        function filterDuplicates() {
+            const filterType = document.getElementById('filter-type').value;
+            const filteredGroups = filterDuplicatesByType(allDuplicateGroups, filterType);
+            document.getElementById('duplicate-groups').innerHTML = filteredGroups.length > 0
+                ? filteredGroups.map(renderDuplicateGroup).join('')
+                : '<div class="text-center text-gray-500 py-8">没有找到符合条件的重复文件</div>';
+        }
+
+        function renderDuplicateGroup(group) {
+            const sha256 = group[0].sha256;
+            const earliestFile = group.find(f => f.is_earliest) || group[0];
+            const fileCount = group.length;
+
+            return `
+                <div class="bg-white rounded-lg shadow overflow-hidden" data-sha256="${sha256}">
+                    <div class="px-6 py-4 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                        <div>
+                            <div class="text-sm text-gray-500">SHA256</div>
+                            <div class="font-mono text-xs text-gray-600">${sha256.substring(0, 16)}...</div>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <span class="text-sm text-gray-500">${fileCount} 个文件</span>
+                            <span class="text-sm text-gray-500">${formatFileSize(earliestFile.file_size)}</span>
+                            ${earliestFile.earliest_time ? `<span class="text-sm text-indigo-600">最早: ${new Date(earliestFile.earliest_time).toLocaleString('zh-CN')}</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        ${group.map(file => renderFileCard(file, file.is_earliest)).join('')}
+                    </div>
+                    <div class="px-6 py-3 bg-gray-50 border-t border-gray-200 flex justify-end">
+                        <input type="checkbox" class="group-checkbox w-4 h-4 text-indigo-600 rounded"
+                            data-sha256="${sha256}" onchange="updateSelected('${sha256}', this.checked)">
+                        <button onclick="deduplicateGroup('${sha256}')"
+                            class="ml-4 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-md">
+                            去重
+                        </button>
                     </div>
                 </div>
             `;
         }
+
+        function renderFileCard(file, isEarliest) {
+            const isImage = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff'].includes(
+                file.filename.toLowerCase().substring(file.filename.lastIndexOf('.'))
+            );
+            const isVideo = ['.mp4', '.mov', '.avi', '.mkv', '.wmv'].includes(
+                file.filename.toLowerCase().substring(file.filename.lastIndexOf('.'))
+            );
+            const cardClass = isEarliest ? 'file-card-earliest' : 'border-gray-200';
+
+            return `
+                <div class="border ${cardClass} rounded-lg overflow-hidden">
+                    ${isImage ? `
+                        <div class="h-32 bg-gray-100 relative">
+                            <img src="${file.filepath}" alt="${file.filename}"
+                                class="w-full h-full object-cover"
+                                onerror="this.parentElement.innerHTML='<div class=\\'h-full flex items-center justify-center text-gray-400\\'>无预览</div>'">
+                        </div>
+                    ` : isVideo ? `
+                        <div class="h-32 bg-gray-800 flex items-center justify-center text-white">
+                            <svg class="w-12 h-12" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 001 1h3l4 4V8.618a1 1 0 01-.563-.894L14.553 7.106zM15 8v4H5V8h10z"/>
+                            </svg>
+                        </div>
+                    ` : `
+                        <div class="h-32 bg-gray-100 flex items-center justify-center text-gray-400">
+                            <svg class="w-12 h-12" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011 1v6a1 1 0 11-2 0V11a1 1 0 011-1zm6-6h-6v6h6V5z" clip-rule="evenodd"/>
+                            </svg>
+                        </div>
+                    `}
+                    <div class="p-3">
+                        <div class="flex items-center gap-2 mb-2">
+                            ${isEarliest ? '<span class="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">最早</span>' : ''}
+                            <span class="px-2 py-0.5 ${isImage ? 'bg-blue-100 text-blue-700' : isVideo ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'} text-xs rounded-full">
+                                ${file.file_type === 'photo' ? '照片' : file.file_type === 'video' ? '视频' : '其他'}
+                            </span>
+                        </div>
+                        <div class="text-sm font-medium text-gray-900 truncate" title="${file.filename}">${file.filename}</div>
+                        <div class="text-xs text-gray-500 truncate" title="${file.filepath}">${file.filepath}</div>
+                        <div class="text-xs text-gray-400 mt-1">${formatFileSize(file.file_size)}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function toggleSelectAll() {
+            const checked = document.getElementById('select-all').checked;
+            document.querySelectorAll('.group-checkbox').forEach(cb => cb.checked = checked);
+            if (checked) {
+                document.querySelectorAll('.group-checkbox').forEach(cb => selectedDuplicates.add(cb.dataset.sha256));
+            } else {
+                selectedDuplicates.clear();
+            }
+        }
+
+        function updateSelected(sha256, checked) {
+            if (checked) {
+                selectedDuplicates.add(sha256);
+            } else {
+                selectedDuplicates.delete(sha256);
+                document.getElementById('select-all').checked = false;
+            }
+        }
+
+        function deduplicateGroup(sha256) {
+            fetch(`${API_BASE}/duplicates/${sha256}/deduplicate`, { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast(`去重成功，释放 ${formatSpace(data.space_saved)}`);
+                        loadDuplicatesPage(currentDuplicatesPage);
+                        loadDashboard();
+                    } else {
+                        showToast('去重失败: ' + data.error, 'error');
+                    }
+                });
+        }
+
+        function batchDeduplicate() {
+            if (selectedDuplicates.size === 0) {
+                showToast('请先选择要去重的文件组', 'error');
+                return;
+            }
+
+            if (!confirm(`确定要对选中的 ${selectedDuplicates.size} 个文件组执行去重操作吗？`)) return;
+
+            fetch(`${API_BASE}/duplicates/batch-deduplicate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sha256_list: Array.from(selectedDuplicates) })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(`批量去重完成，成功 ${data.success_count} 个，失败 ${data.error_count} 个，释放 ${formatSpace(data.total_space_saved)}`);
+                    loadDuplicatesPage(currentDuplicatesPage);
+                    loadDashboard();
+                } else {
+                    showToast('批量去重失败: ' + data.error, 'error');
+                }
+            });
+        }
+
+        // ==================== History ====================
+        function loadHistoryPage(page) {
+            currentHistoryPage = page;
+
+            fetch(`${API_BASE}/history?page=${page}&limit=20`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('history-table-body').innerHTML = data.data.operations.length > 0
+                            ? data.data.operations.map(op => `
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-6 py-4 text-sm text-gray-900">${new Date(op.created_at).toLocaleString('zh-CN')}</td>
+                                    <td class="px-6 py-4">
+                                        <span class="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">去重</span>
+                                    </td>
+                                    <td class="px-6 py-4 text-xs font-mono text-gray-600">${op.sha256.substring(0, 16)}...</td>
+                                    <td class="px-6 py-4 text-sm text-gray-900 truncate max-w-xs" title="${op.kept_file_path}">
+                                        ${op.kept_file_new_path || op.kept_file_path || '-'}
+                                    </td>
+                                    <td class="px-6 py-4 text-sm text-gray-900">${op.backup_files ? op.backup_files.length : 0}</td>
+                                    <td class="px-6 py-4 text-sm text-green-600 font-medium">+${formatSpace(op.space_saved || 0)}</td>
+                                </tr>
+                            `).join('')
+                            : '<tr><td colspan="6" class="px-6 py-8 text-center text-gray-500">暂无操作记录</td></tr>';
+
+                        // Update pagination
+                        document.getElementById('history-current-page').textContent = page;
+                        document.getElementById('history-total-pages').textContent = data.pagination.total_pages;
+                        document.getElementById('history-prev').disabled = page <= 1;
+                        document.getElementById('history-next').disabled = page >= data.pagination.total_pages;
+                    }
+                });
+        }
+
+        // ==================== Initialize ====================
+        document.addEventListener('DOMContentLoaded', () => {
+            showPage('dashboard');
+        });
     </script>
 </body>
 </html>

@@ -21,23 +21,22 @@ def get_storage():
     """Get appropriate storage instance based on configuration file"""
     global storage
     if storage is None:
-        storage_type = "csv"  # Default storage type
+        storage_type = "sqlite"  # Default storage type
         
         # Try to load storage type from configuration file
         try:
             if Path(CONFIG_FILE).exists():
                 with open(CONFIG_FILE, 'r') as f:
                     config = json.load(f)
-                storage_type = config.get("storage_type", "csv")
+                storage_type = config.get("storage_type", "sqlite")
             else:
                 # If no config file exists, create a default one
-                config = {"storage_type": "csv"}
+                config = {"storage_type": storage_type}
                 with open(CONFIG_FILE, 'w') as f:
                     json.dump(config, f, indent=2)
         except Exception as e:
             # If there's an error reading the config, use default
             print(f"Warning: Could not read config file, using default storage: {e}")
-            storage_type = "csv"
         
         # Initialize appropriate storage based on config
         if storage_type == "sqlite":
@@ -60,7 +59,7 @@ def delete_file():
             os.remove(file_path)
             # Get storage instance
             storage_instance = get_storage()
-            storage_instance.refresh_duplicates()
+            storage_instance.delete_file(file_path)
             return jsonify({'success': True, 'message': 'File deleted successfully'})
         else:
             return jsonify({'success': False, 'message': 'File not found'}), 404

@@ -127,6 +127,15 @@ class SQLiteStorage(StorageInterface):
         logging.info("Skipping duplicate save operation - duplicates are queried directly from files table")
         pass
 
+    def delete_file(self, filepath: str) -> None:
+        """delete one file"""
+        logging.info("Delete one file")
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM files WHERE filepath = ?', (filepath,))
+        conn.commit()
+        conn.close()        
+        logging.info(f"Delete one file completed")
     
     def refresh_duplicates(self) -> None:
         """Refresh duplicates by removing entries for files that no longer exist"""

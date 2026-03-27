@@ -1,4 +1,3 @@
-<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -293,6 +292,165 @@
             .finally(() => {
                 document.getElementById('scan-button').disabled = false;
             });
+        }
+
+        // Add these functions to the existing script section
+
+        // Function to load and display photos sorted by creation time (descending)
+        function loadPhotos() {
+            // Update the header
+            document.querySelector('h1').textContent = 'Photos';
+            
+            // Show loading message
+            const contentDiv = document.getElementById('content');
+            contentDiv.innerHTML = '<div class="text-center py-5 italic text-gray-600">Loading photos...</div>';
+            
+            // Fetch all duplicates (you might want a dedicated photos endpoint in the future)
+            fetch('http://localhost:5000/duplicates?page=1')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Flatten all groups into a single array of files
+                        let allFiles = [];
+                        data.data.forEach(group => {
+                            allFiles = allFiles.concat(group);
+                        });
+                        
+                        // Filter for image files only
+                        const imageFiles = allFiles.filter(file => {
+                            const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff'];
+                            const ext = file.filename.toLowerCase().substring(file.filename.lastIndexOf('.'));
+                            return imageExtensions.includes(ext);
+                        });
+                        
+                        // Sort by creation time (descending - newest first)
+                        imageFiles.sort((a, b) => {
+                            // Assuming creation_time is in a parseable format
+                            return new Date(b.creation_time) - new Date(a.creation_time);
+                        });
+                        
+                        renderPhotos(imageFiles);
+                    } else {
+                        contentDiv.innerHTML = `<div class="bg-red-50 text-red-800 p-4 rounded my-4">Error loading photos: ${data.message}</div>`;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    contentDiv.innerHTML = `<div class="bg-red-50 text-red-800 p-4 rounded my-4">Failed to connect to backend service: ${error.message}</div>`;
+                });
+        }
+
+        // Function to render photos in a grid layout
+        function renderPhotos(photos) {
+            const contentDiv = document.getElementById('content');
+            
+            if (photos.length === 0) {
+                contentDiv.innerHTML = '<div class="text-center py-5 italic text-gray-600">No photos found.</div>';
+                return;
+            }
+            
+            let html = `
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            `;
+            
+            photos.forEach(photo => {
+                const fileSize = formatFileSize(photo.file_size);
+                const jsSafePath = photo.filepath.replace(/\\/g, '\\\\');
+                
+                html += `
+                <div class="file-card bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
+                    <div class="relative pb-[100%]"> <!-- Square container for image -->
+                        <img src="${photo.filepath}" alt="${photo.filename}" 
+                            class="absolute h-full w-full object-cover" 
+                            onerror="this.parentElement.innerHTML='<div class=\"absolute inset-0 flex items-center justify-center bg-gray-200 text-gray-500\">No preview</div>';">
+                    </div>
+                    <div class="p-3">
+                        <div class="font-bold text-sm mb-1 truncate">${photo.filename}</div>
+                        <div class="text-gray-500 text-xs mb-1">${photo.creation_time}</div>
+                        <div class="text-gray-500 text-xs mb-2">${fileSize}</div>
+                        <button class="w-full px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded text-xs" 
+                                onclick="deleteFile('${jsSafePath}', this)">Delete</button>
+                    </div>
+                </div>
+                `;
+            });
+            
+            html += `
+            </div>
+            `;
+            
+            contentDiv.innerHTML = html;
+        }
+
+        // Add event listeners to navigation links
+        document.addEventListener('DOMContentLoaded', function() {
+            // Get navigation links
+            const navLinks = document.querySelectorAll('nav a');
+            
+            // Home link
+            navLinks[0].addEventListener('click', function(e) {
+                e.preventDefault();
+                // Reset to original view
+                document.querySelector('h1').textContent = 'Duplicate Files Viewer';
+                loadDuplicates();
+            });
+            
+            // Photos link
+            navLinks[1].addEventListener('click', function(e) {
+                e.preventDefault();
+                loadPhotos();
+            });
+            
+            // Videos link
+            navLinks[2].addEventListener('click', function(e) {
+                e.preventDefault();
+                // Similar implementation for videos
+                loadVideos();
+            });
+            
+            // Help link
+            navLinks[3].addEventListener('click', function(e) {
+                e.preventDefault();
+                // Show help content
+                showHelp();
+            });
+        });
+
+        // Function to load videos (similar to photos)
+        function loadVideos() {
+            document.querySelector('h1').textContent = 'Videos';
+            const contentDiv = document.getElementById('content');
+            contentDiv.innerHTML = '<div class="text-center py-5 italic text-gray-600">Video functionality not yet implemented.</div>';
+        }
+
+        // Function to show help content
+        function showHelp() {
+            document.querySelector('h1').textContent = 'Help';
+            const contentDiv = document.getElementById('content');
+            contentDiv.innerHTML = `
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h2 class="text-2xl font-bold mb-4">Help Documentation</h2>
+                    <div class="prose max-w-none">
+                        <h3>Overview</h3>
+                        <p>This application helps you find and manage duplicate files on your system.</p>
+                        
+                        <h3>Features</h3>
+                        <ul>
+                            <li><strong>Duplicate Detection:</strong> Finds files with identical content using SHA256 hashing</li>
+                            <li><strong>File Management:</strong> Delete duplicate files directly from the interface</li>
+                            <li><strong>Photo Gallery:</strong> View photos sorted by creation date</li>
+                            <li><strong>Directory Scanning:</strong> Add new directories to scan for duplicates</li>
+                        </ul>
+                        
+                        <h3>How to Use</h3>
+                        <ol>
+                            <li>Navigate to different sections using the top menu</li>
+                            <li>Use the "Scan New Directories" section to add folders for scanning</li>
+                            <li>Delete unwanted duplicate files using the delete buttons</li>
+                        </ol>
+                    </div>
+                </div>
+            `;
         }
     </script>
 </body>

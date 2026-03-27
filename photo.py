@@ -299,16 +299,6 @@ def process_multiple_directories(directory_paths: List[str],
     # Write all files to CSV
     logging.info(f"Writing all file information")
     storage.save_files(file_results)
-    
-    # Find and write duplicates if requested
-    logging.info("Finding duplicate files...")
-    duplicates = find_duplicates(file_results)
-    if duplicates:
-        logging.info(f"Writing duplicate file information to {DUPLICATES_CSV}")
-        storage.save_duplicates(duplicates)
-    else:
-        logging.info("No duplicate files found")    
-    
     return file_results
 
 def generate_html_viewer() -> None:

@@ -20,6 +20,11 @@ class StorageInterface(ABC):
         pass
     
     @abstractmethod
+    def delete_file(self, filepath: str) -> None:
+        """delete one file"""
+        pass
+
+    @abstractmethod
     def refresh_duplicates(self) -> None:
         """Refresh duplicates by removing entries for non-existent files"""
         pass

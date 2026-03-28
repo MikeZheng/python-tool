@@ -3,7 +3,6 @@
 __pycache__
 
 # Generated data files
-config.json
-duplicate_files.csv
 file_database.db
 file_list.csv
+duplicate_files.csv

@@ -4,5 +4,9 @@ __pycache__
 
 # Generated data files
 file_database.db
+file_database.db-journal
 file_list.csv
 duplicate_files.csv
+
+.claude
+

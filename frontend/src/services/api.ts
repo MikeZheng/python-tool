@@ -65,7 +65,7 @@ export const scanApi = {
 
 // 重复文件API
 export const duplicatesApi = {
-  getDuplicates: async (page: number = 1, limit: number = 20): Promise<ApiResponse<DuplicatesResponse>> => {
+  getDuplicates: async (page: number = 1, limit: number = 20): Promise<any> => {
     const response = await apiClient.get(`/duplicates?page=${page}&limit=${limit}`);
     return response.data;
   },

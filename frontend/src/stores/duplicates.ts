@@ -15,10 +15,10 @@ export const useDuplicatesStore = defineStore('duplicates', {
       this.loading = true;
       try {
         const response = await duplicatesApi.getDuplicates(page);
-        if (response.success && response.data) {
-          this.duplicateGroups = response.data.data;
-          this.currentPage = response.data.pagination.page;
-          this.totalPages = response.data.pagination.total_pages;
+        if (response.success) {
+          this.duplicateGroups = response.data;
+          this.currentPage = response.pagination?.page || page;
+          this.totalPages = response.pagination?.total_pages || 1;
         }
       } catch (error) {
         console.error('Error fetching duplicates:', error);

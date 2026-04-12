@@ -19,16 +19,6 @@ class FileInfo:
         return any(self.filename.lower().endswith(ext) for ext in image_extensions)
 
 @dataclass
-class FileMetadata:
-    """Represents additional metadata for a file"""
-    id: int
-    file_id: int
-    key: str
-    value: Optional[str]
-    data_type: str = "string"
-    created_at: Optional[datetime] = None
-
-@dataclass
 class DuplicateGroup:
     """Represents a group of duplicate files"""
     sha256: str

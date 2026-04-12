@@ -64,21 +64,6 @@ class SQLiteStorage(StorageInterface):
             )
         ''')
 
-        # Create scanned_directories table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS scanned_directories (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                directory_path TEXT UNIQUE NOT NULL,
-                total_files INTEGER DEFAULT 0,
-                photo_count INTEGER DEFAULT 0,
-                video_count INTEGER DEFAULT 0,
-                other_count INTEGER DEFAULT 0,
-                duplicate_count INTEGER DEFAULT 0,
-                scan_status TEXT DEFAULT 'completed',
-                scanned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-
         # Create operation_history table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS operation_history (
@@ -108,7 +93,7 @@ class SQLiteStorage(StorageInterface):
             )
         ''')
 
-        # Create scan_tasks table
+        # Create scan_tasks table (merged with scanned_directories)
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS scan_tasks (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -118,10 +103,37 @@ class SQLiteStorage(StorageInterface):
                 scan_ended_at TIMESTAMP,
                 total_files INTEGER DEFAULT 0,
                 processed_files INTEGER DEFAULT 0,
+                photo_count INTEGER DEFAULT 0,
+                video_count INTEGER DEFAULT 0,
+                other_count INTEGER DEFAULT 0,
+                duplicate_count INTEGER DEFAULT 0,
                 error_message TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                cancelled_at TIMESTAMP
             )
         ''')
+
+        # Create scan_file_mappings table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS scan_file_mappings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id INTEGER NOT NULL,
+                file_id INTEGER NOT NULL,
+                scan_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                is_duplicate BOOLEAN DEFAULT FALSE,
+                FOREIGN KEY (task_id) REFERENCES scan_tasks(id) ON DELETE CASCADE,
+                FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE
+            )
+        ''')
+
+        # Create indexes for performance
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_files_sha256 ON files(sha256)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_files_filepath ON files(filepath)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_files_task_id ON files(task_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_scan_tasks_status ON scan_tasks(status)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_scan_tasks_directory_path ON scan_tasks(directory_path)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_scan_file_mappings_task_id ON scan_file_mappings(task_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_scan_file_mappings_file_id ON scan_file_mappings(file_id)')
 
         # Add missing columns to existing tables (for migration)
         self._migrate_database(cursor)
@@ -132,7 +144,7 @@ class SQLiteStorage(StorageInterface):
 
     def _migrate_database(self, cursor) -> None:
         """Add missing columns for migration from older versions"""
-        # Get existing columns
+        # Migrate files table
         cursor.execute("PRAGMA table_info(files)")
         existing_columns = {row[1] for row in cursor.fetchall()}
 
@@ -154,6 +166,51 @@ class SQLiteStorage(StorageInterface):
                     logging.info(f"Added column {col_name} to files table")
                 except sqlite3.OperationalError:
                     pass  # Column already exists
+
+        # Migrate scan_tasks table
+        cursor.execute("PRAGMA table_info(scan_tasks)")
+        existing_columns = {row[1] for row in cursor.fetchall()}
+
+        # Add new columns if they don't exist
+        new_columns = [
+            ('status', "TEXT DEFAULT 'queued'"),
+            ('scan_started_at', 'TIMESTAMP'),
+            ('scan_ended_at', 'TIMESTAMP'),
+            ('total_files', 'INTEGER DEFAULT 0'),
+            ('processed_files', 'INTEGER DEFAULT 0'),
+            ('photo_count', 'INTEGER DEFAULT 0'),
+            ('video_count', 'INTEGER DEFAULT 0'),
+            ('other_count', 'INTEGER DEFAULT 0'),
+            ('duplicate_count', 'INTEGER DEFAULT 0'),
+            ('error_message', 'TEXT'),
+            ('cancelled_at', 'TIMESTAMP'),
+        ]
+
+        for col_name, col_type in new_columns:
+            if col_name not in existing_columns:
+                try:
+                    cursor.execute(f'ALTER TABLE scan_tasks ADD COLUMN {col_name} {col_type}')
+                    logging.info(f"Added column {col_name} to scan_tasks table")
+                except sqlite3.OperationalError:
+                    pass  # Column already exists
+
+        # Create indexes if they don't exist
+        indexes = [
+            'CREATE INDEX IF NOT EXISTS idx_files_sha256 ON files(sha256)',
+            'CREATE INDEX IF NOT EXISTS idx_files_filepath ON files(filepath)',
+            'CREATE INDEX IF NOT EXISTS idx_files_task_id ON files(task_id)',
+            'CREATE INDEX IF NOT EXISTS idx_scan_tasks_status ON scan_tasks(status)',
+            'CREATE INDEX IF NOT EXISTS idx_scan_tasks_directory_path ON scan_tasks(directory_path)',
+            'CREATE INDEX IF NOT EXISTS idx_scan_file_mappings_task_id ON scan_file_mappings(task_id)',
+            'CREATE INDEX IF NOT EXISTS idx_scan_file_mappings_file_id ON scan_file_mappings(file_id)',
+        ]
+
+        for index_sql in indexes:
+            try:
+                cursor.execute(index_sql)
+                logging.info(f"Created index: {index_sql.split('ON')[1].strip()}")
+            except sqlite3.OperationalError:
+                pass  # Index already exists
 
     # ==================== Existing Methods ====================
 
@@ -353,33 +410,36 @@ class SQLiteStorage(StorageInterface):
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
 
+        # Create a new scan task
         cursor.execute('''
-            INSERT OR IGNORE INTO scanned_directories (directory_path, scan_status)
-            VALUES (?, 'pending')
+            INSERT INTO scan_tasks (directory_path, status)
+            VALUES (?, 'queued')
         ''', (directory_path,))
 
-        if cursor.rowcount == 0:
-            # Directory already exists, get its id
-            cursor.execute('SELECT id FROM scanned_directories WHERE directory_path = ?', (directory_path,))
-            directory_id = cursor.fetchone()[0]
-        else:
-            directory_id = cursor.lastrowid
+        task_id = cursor.lastrowid
 
         conn.commit()
         conn.close()
-        logging.info(f"Added scanned directory: {directory_path} (id={directory_id})")
-        return directory_id
+        logging.info(f"Added scanned directory task: {directory_path} (id={task_id})")
+        return task_id
 
     def get_scanned_directories(self) -> List[Dict[str, Any]]:
         """Get all scanned directories with stats"""
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
 
+        # Get latest scan for each directory
         cursor.execute('''
-            SELECT id, directory_path, total_files, photo_count, video_count, other_count,
-                   duplicate_count, scan_status, scanned_at
-            FROM scanned_directories
-            ORDER BY scanned_at DESC
+            SELECT t1.id, t1.directory_path, t1.total_files, t1.photo_count, t1.video_count, t1.other_count,
+                   t1.duplicate_count, t1.status, t1.scan_ended_at as scanned_at
+            FROM scan_tasks t1
+            INNER JOIN (
+                SELECT directory_path, MAX(scan_ended_at) as max_scan_ended_at
+                FROM scan_tasks
+                WHERE status = 'completed'
+                GROUP BY directory_path
+            ) t2 ON t1.directory_path = t2.directory_path AND t1.scan_ended_at = t2.max_scan_ended_at
+            ORDER BY t1.scan_ended_at DESC
         ''')
         rows = cursor.fetchall()
         conn.close()
@@ -403,8 +463,8 @@ class SQLiteStorage(StorageInterface):
 
         cursor.execute('''
             SELECT id, directory_path, total_files, photo_count, video_count, other_count,
-                   duplicate_count, scan_status, scanned_at
-            FROM scanned_directories WHERE id = ?
+                   duplicate_count, status, scan_ended_at as scanned_at
+            FROM scan_tasks WHERE id = ?
         ''', (directory_id,))
         row = cursor.fetchone()
         conn.close()
@@ -429,9 +489,9 @@ class SQLiteStorage(StorageInterface):
         cursor = conn.cursor()
 
         cursor.execute('''
-            UPDATE scanned_directories
+            UPDATE scan_tasks
             SET total_files = ?, photo_count = ?, video_count = ?, other_count = ?,
-                duplicate_count = ?, scan_status = 'completed', scanned_at = CURRENT_TIMESTAMP
+                duplicate_count = ?, status = 'completed', scan_ended_at = CURRENT_TIMESTAMP
             WHERE id = ?
         ''', (
             stats.get('total_files', 0),
@@ -451,14 +511,16 @@ class SQLiteStorage(StorageInterface):
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
 
-        # Delete associated files
-        cursor.execute('DELETE FROM files WHERE directory_id = ?', (directory_id,))
-        # Delete directory record
-        cursor.execute('DELETE FROM scanned_directories WHERE id = ?', (directory_id,))
+        # Delete associated scan_file_mappings
+        cursor.execute('DELETE FROM scan_file_mappings WHERE task_id = ?', (directory_id,))
+        # Delete associated files (if needed)
+        cursor.execute('DELETE FROM files WHERE task_id = ?', (directory_id,))
+        # Delete task record
+        cursor.execute('DELETE FROM scan_tasks WHERE id = ?', (directory_id,))
 
         conn.commit()
         conn.close()
-        logging.info(f"Deleted scanned directory id={directory_id}")
+        logging.info(f"Deleted scanned directory task id={directory_id}")
 
     # ==================== Scan Progress Methods ====================
 
@@ -622,6 +684,19 @@ class SQLiteStorage(StorageInterface):
             }
         return None
 
+    def add_scan_file_mapping(self, task_id: int, file_id: int, is_duplicate: bool = False) -> None:
+        """Add a scan file mapping"""
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            INSERT INTO scan_file_mappings (task_id, file_id, is_duplicate)
+            VALUES (?, ?, ?)
+        ''', (task_id, file_id, is_duplicate))
+
+        conn.commit()
+        conn.close()
+
     # ==================== Operation History Methods ====================
 
     def log_operation(self, operation: Dict[str, Any]) -> int:
@@ -727,7 +802,7 @@ class SQLiteStorage(StorageInterface):
         duplicate_files = cursor.fetchone()[0]
 
         # Scanned directories
-        cursor.execute('SELECT COUNT(*) FROM scanned_directories')
+        cursor.execute('SELECT COUNT(DISTINCT directory_path) FROM scan_tasks WHERE status = "completed"')
         scanned_directories = cursor.fetchone()[0]
 
         # Total space saved
@@ -913,3 +988,22 @@ class SQLiteStorage(StorageInterface):
                 'created_at': row[8]
             }
         return None
+
+    def cancel_task(self, task_id: int) -> None:
+        """Cancel a scan task"""
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        # Update task status to cancelled
+        cursor.execute('''
+            UPDATE scan_tasks
+            SET status = 'cancelled', cancelled_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ''', (task_id,))
+
+        # Delete associated scan_file_mappings
+        cursor.execute('DELETE FROM scan_file_mappings WHERE task_id = ?', (task_id,))
+
+        conn.commit()
+        conn.close()
+        logging.info(f"Cancelled scan task id={task_id}")

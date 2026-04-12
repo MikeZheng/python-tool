@@ -32,14 +32,22 @@ class ProgressService:
         self.storage.update_scan_progress(progress)
         logging.info(f"Scan started: {total_files} files to process")
 
-    def update_progress(self, current_file: str, processed_files: int) -> None:
+    def update_progress(self, current_file: str, processed_files: int, task_id: Optional[int] = None) -> None:
         """
         Update scan progress
 
         Args:
             current_file: Current file being processed
             processed_files: Number of files processed so far
+            task_id: Optional task ID to check status
         """
+        # Check if task is cancelled
+        if task_id:
+            task = self.storage.get_scan_task(task_id)
+            if task and task['status'] == 'cancelled':
+                self.complete_scan()
+                return
+
         existing = self.storage.get_scan_progress()
         if existing:
             progress = {

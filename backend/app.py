@@ -3,7 +3,6 @@ from flask_cors import CORS
 import logging
 
 from routes.config_routes import config_bp
-from routes.directory_routes import directory_bp
 from routes.duplicate_routes import duplicate_bp
 from routes.history_routes import history_bp
 from routes.dashboard_routes import dashboard_bp
@@ -25,7 +24,6 @@ logging.basicConfig(
 
 # Register blueprints
 app.register_blueprint(config_bp, url_prefix='/api')
-app.register_blueprint(directory_bp, url_prefix='/api')
 app.register_blueprint(duplicate_bp, url_prefix='/api')
 app.register_blueprint(history_bp, url_prefix='/api')
 app.register_blueprint(dashboard_bp, url_prefix='/api')

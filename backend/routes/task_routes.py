@@ -227,3 +227,26 @@ def resume_task(task_id: int):
         return jsonify({'success': True, 'message': 'Task resumed and added to queue'})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+@task_bp.route('/tasks/<int:task_id>/cancel', methods=['POST'])
+def cancel_task(task_id: int):
+    """Cancel a scan task"""
+    try:
+        task = get_storage().get_scan_task(task_id)
+        if not task:
+            return jsonify({'success': False, 'error': 'Task not found'}), 404
+        
+        if task['status'] in ['completed', 'failed', 'cancelled']:
+            return jsonify({'success': False, 'error': 'Task cannot be cancelled'}), 400
+        
+        # Remove from queue if it's not running
+        global task_queue
+        if task_id in task_queue:
+            task_queue.remove(task_id)
+        
+        # Cancel the task
+        get_storage().cancel_task(task_id)
+        
+        return jsonify({'success': True, 'message': 'Task cancelled'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500

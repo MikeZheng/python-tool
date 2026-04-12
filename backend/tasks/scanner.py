@@ -102,26 +102,31 @@ def scan_directory_task(directory_id: int, directory_path: str, task_id: int = N
         other_count = 0
         current_sha256s = set()
         current_files = []
+        sha256_counts = {}
 
         for file_path in files:
             try:
-                # Check if task is paused
+                # Check if task is paused or cancelled
                 if task_id:
                     task = storage.get_scan_task(task_id)
                     if task and task['status'] == 'paused':
                         logging.info(f"Task {task_id} has been paused")
                         progress_svc.pause_scan()
                         return
+                    if task and task['status'] == 'cancelled':
+                        logging.info(f"Task {task_id} has been cancelled")
+                        progress_svc.complete_scan()
+                        return
 
                 # Check if file has been modified
                 if not is_file_modified(file_path):
                     processed += 1
-                    progress_svc.update_progress(file_path, processed)
+                    progress_svc.update_progress(file_path, processed, task_id)
                     continue
 
                 # Update progress
                 processed += 1
-                progress_svc.update_progress(file_path, processed)
+                progress_svc.update_progress(file_path, processed, task_id)
 
                 # Update task progress if task_id is provided
                 if task_id:
@@ -164,25 +169,28 @@ def scan_directory_task(directory_id: int, directory_path: str, task_id: int = N
                     'time_sources': time_sources,
                     'file_type': file_type
                 }
-                storage.add_file(file_data, directory_id, task_id)
+                file_id = storage.add_file(file_data, directory_id, task_id)
                 
                 # Track current files for duplicate counting
                 current_sha256s.add(sha256)
                 current_files.append(file_data)
+                
+                # Check if file is duplicate
+                is_duplicate = sha256 in sha256_counts
+                if is_duplicate:
+                    sha256_counts[sha256] += 1
+                else:
+                    sha256_counts[sha256] = 1
+                
+                # Create scan_file_mapping
+                if task_id:
+                    storage.add_scan_file_mapping(task_id, file_id, is_duplicate)
 
             except Exception as e:
                 logging.error(f"Error processing file {file_path}: {e}")
 
         # Count duplicates within current scan
         duplicate_count = 0
-        sha256_counts = {}
-        for file_data in current_files:
-            sha256 = file_data['sha256']
-            if sha256 in sha256_counts:
-                sha256_counts[sha256] += 1
-            else:
-                sha256_counts[sha256] = 1
-        
         for count in sha256_counts.values():
             if count > 1:
                 duplicate_count += count

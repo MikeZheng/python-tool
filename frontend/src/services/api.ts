@@ -99,6 +99,10 @@ export const taskApi = {
     const response = await apiClient.post(`/tasks/${taskId}/resume`);
     return response.data;
   },
+  cancelTask: async (taskId: number): Promise<ApiResponse<{ message: string }>> => {
+    const response = await apiClient.post(`/tasks/${taskId}/cancel`);
+    return response.data;
+  },
   getTaskQueue: async (): Promise<ApiResponse<Task[]>> => {
     const response = await apiClient.get('/tasks/queue');
     return response.data;

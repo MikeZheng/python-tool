@@ -123,6 +123,22 @@ export const useTaskStore = defineStore('tasks', {
       }
     },
 
+    async cancelTask(taskId: number) {
+      this.loading = true;
+      try {
+        const response = await taskApi.cancelTask(taskId);
+        if (response.success) {
+          await this.fetchTasks();
+        }
+        return response;
+      } catch (error) {
+        console.error('Error cancelling task:', error);
+        return { success: false, error: '作废任务失败' };
+      } finally {
+        this.loading = false;
+      }
+    },
+
     async refreshTasks() {
       await Promise.all([
         this.fetchTasks(),

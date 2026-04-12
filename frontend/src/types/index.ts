@@ -120,4 +120,9 @@ export interface Task {
   processed_files: number;
   error_message: string | null;
   created_at: string;
+  cancelled_at: string | null;
+  photo_count?: number;
+  video_count?: number;
+  other_count?: number;
+  duplicate_count?: number;
 }

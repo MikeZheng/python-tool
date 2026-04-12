@@ -29,12 +29,20 @@
     <div v-if="taskStore.runningTask && taskStore.runningTask.status === 'running'" class="bg-blue-50 rounded-lg shadow mb-6 p-6">
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-lg font-semibold text-blue-900">当前运行任务</h2>
-        <button 
-          @click="pauseTask"
-          class="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white font-medium rounded-md text-sm"
-        >
-          暂停任务
-        </button>
+        <div class="flex gap-2">
+          <button 
+            @click="pauseTask"
+            class="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white font-medium rounded-md text-sm"
+          >
+            暂停任务
+          </button>
+          <button 
+            @click="cancelTask(taskStore.runningTask.id)"
+            class="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-md text-sm"
+          >
+            作废任务
+          </button>
+        </div>
       </div>
       <div class="mb-4">
         <div class="text-sm font-medium text-gray-900 mb-2">{{ taskStore.runningTask.directory_path }}</div>
@@ -88,6 +96,7 @@
           :key="task.id"
           :task="task"
           @delete="deleteTask"
+          @cancel="cancelTask"
         />
       </div>
     </div>
@@ -200,6 +209,17 @@ const resumeTask = async () => {
     showToast('任务已恢复');
   } else {
     showToast('恢复失败: ' + (result.error || '未知错误'), 'error');
+  }
+};
+
+const cancelTask = async (taskId: number) => {
+  if (!confirm('确定作废此任务吗？')) return;
+  
+  const result = await taskStore.cancelTask(taskId);
+  if (result.success) {
+    showToast('任务已作废');
+  } else {
+    showToast('作废失败: ' + (result.error || '未知错误'), 'error');
   }
 };
 

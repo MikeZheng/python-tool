@@ -14,6 +14,7 @@
       <div class="text-xs text-gray-400 flex flex-wrap gap-2 mt-1">
         <span v-if="task.scan_started_at">开始: {{ formatDate(task.scan_started_at) }}</span>
         <span v-if="task.scan_ended_at">结束: {{ formatDate(task.scan_ended_at) }}</span>
+        <span v-if="task.cancelled_at">作废: {{ formatDate(task.cancelled_at) }}</span>
         <span v-if="task.scan_started_at && task.scan_ended_at">耗时: {{ calculateDuration(task.scan_started_at, task.scan_ended_at) }}</span>
       </div>
     </div>
@@ -24,6 +25,13 @@
         class="px-3 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 text-sm rounded transition-colors"
       >
         重试
+      </button>
+      <button 
+        v-if="task.status !== 'completed' && task.status !== 'failed' && task.status !== 'cancelled'"
+        @click="$emit('cancel', task.id)"
+        class="px-3 py-1 bg-orange-100 hover:bg-orange-200 text-orange-700 text-sm rounded transition-colors"
+      >
+        作废
       </button>
       <button 
         v-if="task.status !== 'running'"
@@ -46,14 +54,17 @@ const props = defineProps<{
 defineEmits<{
   (e: 'retry', taskId: number): void;
   (e: 'delete', taskId: number): void;
+  (e: 'cancel', taskId: number): void;
 }>();
 
 const getStatusText = (status: string): string => {
   const statusMap = {
     'queued': '排队中',
     'running': '运行中',
+    'paused': '已暂停',
     'completed': '已完成',
-    'failed': '失败'
+    'failed': '失败',
+    'cancelled': '已作废'
   };
   return statusMap[status as keyof typeof statusMap] || status;
 };
@@ -62,8 +73,10 @@ const getStatusColor = (status: string): string => {
   const colorMap = {
     'queued': 'bg-yellow-400',
     'running': 'bg-blue-400',
+    'paused': 'bg-purple-400',
     'completed': 'bg-green-400',
-    'failed': 'bg-red-400'
+    'failed': 'bg-red-400',
+    'cancelled': 'bg-orange-400'
   };
   return colorMap[status as keyof typeof colorMap] || 'bg-gray-400';
 };

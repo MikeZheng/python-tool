@@ -63,11 +63,6 @@ class StorageInterface(ABC):
         pass
 
     @abstractmethod
-    def get_scanned_directories(self) -> List[Dict[str, Any]]:
-        """Get all scanned directories with stats"""
-        pass
-
-    @abstractmethod
     def get_scanned_directory(self, task_id: int) -> Optional[Dict[str, Any]]:
         """Get a specific scanned directory"""
         pass

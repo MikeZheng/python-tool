@@ -421,38 +421,6 @@ class SQLiteStorage(StorageInterface):
         logging.info(f"Added scanned directory task: {directory_path} (id={task_id})")
         return task_id
 
-    def get_scanned_directories(self) -> List[Dict[str, Any]]:
-        """Get all scanned directories with stats"""
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-
-        # Get latest scan for each directory
-        cursor.execute('''
-            SELECT t1.id, t1.directory_path, t1.total_files, t1.photo_count, t1.video_count, t1.other_count,
-                   t1.duplicate_count, t1.status, t1.scan_ended_at as scanned_at
-            FROM scan_tasks t1
-            INNER JOIN (
-                SELECT directory_path, MAX(scan_ended_at) as max_scan_ended_at
-                FROM scan_tasks
-                WHERE status = 'completed'
-                GROUP BY directory_path
-            ) t2 ON t1.directory_path = t2.directory_path AND t1.scan_ended_at = t2.max_scan_ended_at
-            ORDER BY t1.scan_ended_at DESC
-        ''')
-        rows = cursor.fetchall()
-        conn.close()
-
-        return [{
-            'id': row[0],
-            'directory_path': row[1],
-            'total_files': row[2],
-            'photo_count': row[3],
-            'video_count': row[4],
-            'other_count': row[5],
-            'duplicate_count': row[6],
-            'scan_status': row[7],
-            'scanned_at': row[8]
-        } for row in rows]
 
     def get_scanned_directory(self, task_id: int) -> Optional[Dict[str, Any]]:
         """Get a specific scanned directory"""
@@ -588,7 +556,7 @@ class SQLiteStorage(StorageInterface):
         cursor.execute('''
             INSERT OR REPLACE INTO files (filename, filepath, creation_time, file_size, sha256,
                                           task_id, earliest_time, time_sources, file_type)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             file_data['filename'],
             file_data['filepath'],

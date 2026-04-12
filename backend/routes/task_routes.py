@@ -2,7 +2,7 @@ import os
 import threading
 import logging
 from flask import Blueprint, request, jsonify
-from dependencies import get_storage, get_progress_service
+from dependencies import get_storage
 from tasks.scanner import scan_directory_task
 
 # Global task queue management

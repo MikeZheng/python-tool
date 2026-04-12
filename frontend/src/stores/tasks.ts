@@ -35,18 +35,12 @@ export const useTaskStore = defineStore('tasks', {
       }
     },
 
-    async fetchTaskQueue() {
-      // 现在从fetchTasks中获取queued任务，这个方法保留以保持兼容性
-      await this.fetchTasks();
-    },
-
     async addTask(directory: string) {
       this.loading = true;
       try {
         const response = await taskApi.addTask(directory);
         if (response.success) {
           await this.fetchTasks();
-          await this.fetchTaskQueue();
         }
         return response;
       } catch (error) {
@@ -63,7 +57,6 @@ export const useTaskStore = defineStore('tasks', {
         const response = await taskApi.deleteTask(taskId);
         if (response.success) {
           await this.fetchTasks();
-          await this.fetchTaskQueue();
         }
         return response;
       } catch (error) {
@@ -80,7 +73,6 @@ export const useTaskStore = defineStore('tasks', {
         const response = await taskApi.retryTask(taskId);
         if (response.success) {
           await this.fetchTasks();
-          await this.fetchTaskQueue();
         }
         return response;
       } catch (error) {
@@ -141,8 +133,7 @@ export const useTaskStore = defineStore('tasks', {
 
     async refreshTasks() {
       await Promise.all([
-        this.fetchTasks(),
-        this.fetchTaskQueue()
+        this.fetchTasks()
       ]);
     }
   }

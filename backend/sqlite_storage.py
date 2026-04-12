@@ -692,9 +692,6 @@ class SQLiteStorage(StorageInterface):
 
         return count
 
-    # ==================== Scan Tasks Methods ====================
-
-
 
     # ==================== Dashboard Methods ====================
 

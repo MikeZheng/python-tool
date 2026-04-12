@@ -9,7 +9,7 @@ from dependencies import (
     get_progress_service
 )
 
-def scan_directory_task(directory_id: int, directory_path: str, task_id: int = None):
+def scan_directory_task(directory_path: str, task_id: int = None):
     """Background task to scan a directory"""
     storage = get_storage()
     time_svc = get_time_service()
@@ -73,7 +73,7 @@ def scan_directory_task(directory_id: int, directory_path: str, task_id: int = N
             })
 
         if total_files == 0:
-            storage.update_directory_stats(directory_id, {
+            storage.update_task_stats(task_id, {
                 'total_files': 0,
                 'photo_count': 0,
                 'video_count': 0,
@@ -169,7 +169,7 @@ def scan_directory_task(directory_id: int, directory_path: str, task_id: int = N
                     'time_sources': time_sources,
                     'file_type': file_type
                 }
-                file_id = storage.add_file(file_data, directory_id, task_id)
+                file_id = storage.add_file(file_data, task_id)
                 
                 # Track current files for duplicate counting
                 current_sha256s.add(sha256)
@@ -203,7 +203,7 @@ def scan_directory_task(directory_id: int, directory_path: str, task_id: int = N
             'other_count': other_count,
             'duplicate_count': duplicate_count
         }
-        storage.update_directory_stats(directory_id, stats)
+        storage.update_task_stats(task_id, stats)
 
         # Update task status if task_id is provided
         if task_id:

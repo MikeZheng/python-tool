@@ -43,7 +43,6 @@ class SQLiteStorage(StorageInterface):
                 creation_time TEXT NOT NULL,
                 file_size INTEGER NOT NULL,
                 sha256 TEXT NOT NULL,
-                directory_id INTEGER,
                 task_id INTEGER,
                 earliest_time TEXT,
                 time_sources TEXT,
@@ -150,7 +149,6 @@ class SQLiteStorage(StorageInterface):
 
         # Add new columns if they don't exist
         new_columns = [
-            ('directory_id', 'INTEGER'),
             ('task_id', 'INTEGER'),
             ('earliest_time', 'TEXT'),
             ('time_sources', 'TEXT'),
@@ -406,7 +404,7 @@ class SQLiteStorage(StorageInterface):
     # ==================== Scanned Directories Methods ====================
 
     def add_scanned_directory(self, directory_path: str) -> int:
-        """Add a scanned directory record, return directory_id"""
+        """Add a scanned directory record, return task_id"""
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
 
@@ -456,7 +454,7 @@ class SQLiteStorage(StorageInterface):
             'scanned_at': row[8]
         } for row in rows]
 
-    def get_scanned_directory(self, directory_id: int) -> Optional[Dict[str, Any]]:
+    def get_scanned_directory(self, task_id: int) -> Optional[Dict[str, Any]]:
         """Get a specific scanned directory"""
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
@@ -465,7 +463,7 @@ class SQLiteStorage(StorageInterface):
             SELECT id, directory_path, total_files, photo_count, video_count, other_count,
                    duplicate_count, status, scan_ended_at as scanned_at
             FROM scan_tasks WHERE id = ?
-        ''', (directory_id,))
+        ''', (task_id,))
         row = cursor.fetchone()
         conn.close()
 
@@ -483,8 +481,8 @@ class SQLiteStorage(StorageInterface):
             }
         return None
 
-    def update_directory_stats(self, directory_id: int, stats: Dict[str, Any]) -> None:
-        """Update directory statistics after scan"""
+    def update_task_stats(self, task_id: int, stats: Dict[str, Any]) -> None:
+        """Update task statistics after scan"""
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
 
@@ -499,28 +497,28 @@ class SQLiteStorage(StorageInterface):
             stats.get('video_count', 0),
             stats.get('other_count', 0),
             stats.get('duplicate_count', 0),
-            directory_id
+            task_id
         ))
 
         conn.commit()
         conn.close()
-        logging.info(f"Updated directory stats for id={directory_id}: {stats}")
+        logging.info(f"Updated directory stats for id={task_id}: {stats}")
 
-    def delete_scanned_directory(self, directory_id: int) -> None:
+    def delete_scanned_directory(self, task_id: int) -> None:
         """Delete a scanned directory and its associated files"""
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
 
         # Delete associated scan_file_mappings
-        cursor.execute('DELETE FROM scan_file_mappings WHERE task_id = ?', (directory_id,))
+        cursor.execute('DELETE FROM scan_file_mappings WHERE task_id = ?', (task_id,))
         # Delete associated files (if needed)
-        cursor.execute('DELETE FROM files WHERE task_id = ?', (directory_id,))
+        cursor.execute('DELETE FROM files WHERE task_id = ?', (task_id,))
         # Delete task record
-        cursor.execute('DELETE FROM scan_tasks WHERE id = ?', (directory_id,))
+        cursor.execute('DELETE FROM scan_tasks WHERE id = ?', (task_id,))
 
         conn.commit()
         conn.close()
-        logging.info(f"Deleted scanned directory task id={directory_id}")
+        logging.info(f"Deleted scanned directory task id={task_id}")
 
     # ==================== Scan Progress Methods ====================
 
@@ -582,14 +580,14 @@ class SQLiteStorage(StorageInterface):
 
     # ==================== File Methods ====================
 
-    def add_file(self, file_data: Dict[str, Any], directory_id: Optional[int] = None, task_id: Optional[int] = None) -> int:
+    def add_file(self, file_data: Dict[str, Any], task_id: Optional[int] = None) -> int:
         """Add a single file record, return file_id"""
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
 
         cursor.execute('''
             INSERT OR REPLACE INTO files (filename, filepath, creation_time, file_size, sha256,
-                                         directory_id, task_id, earliest_time, time_sources, file_type)
+                                          task_id, earliest_time, time_sources, file_type)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             file_data['filename'],
@@ -597,7 +595,6 @@ class SQLiteStorage(StorageInterface):
             file_data['creation_time'],
             file_data['file_size'],
             file_data['sha256'],
-            directory_id,
             task_id,
             file_data.get('earliest_time'),
             json.dumps(file_data.get('time_sources', {})),

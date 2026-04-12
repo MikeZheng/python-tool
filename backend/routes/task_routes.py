@@ -24,21 +24,11 @@ def process_task_queue():
             
             # Get directory ID or create one
             directory_path = task['directory_path']
-            directories = get_storage().get_scanned_directories()
-            directory_id = None
-            
-            for dir in directories:
-                if dir['directory_path'] == directory_path:
-                    directory_id = dir['id']
-                    break
-            
-            if not directory_id:
-                directory_id = get_storage().add_scanned_directory(directory_path)
             
             # Start scan in background
             thread = threading.Thread(
                 target=scan_directory_task,
-                args=(directory_id, directory_path, task_id)
+                args=(directory_path, task_id)
             )
             thread.daemon = True
             thread.start()

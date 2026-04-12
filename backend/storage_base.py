@@ -68,18 +68,18 @@ class StorageInterface(ABC):
         pass
 
     @abstractmethod
-    def get_scanned_directory(self, directory_id: int) -> Optional[Dict[str, Any]]:
+    def get_scanned_directory(self, task_id: int) -> Optional[Dict[str, Any]]:
         """Get a specific scanned directory"""
         pass
 
     @abstractmethod
-    def update_directory_stats(self, directory_id: int, stats: Dict[str, Any]) -> None:
-        """Update directory statistics after scan"""
+    def update_task_stats(self, task_id: int, stats: Dict[str, Any]) -> None:
+        """Update task statistics after scan"""
         pass
 
     @abstractmethod
-    def delete_scanned_directory(self, directory_id: int) -> None:
-        """Delete a scanned directory and its associated files"""
+    def delete_scanned_directory(self, task_id: int) -> None:
+        """Delete a scanned task and its associated files"""
         pass
 
     # ==================== Scan Progress Methods ====================
@@ -102,7 +102,7 @@ class StorageInterface(ABC):
     # ==================== File Methods ====================
 
     @abstractmethod
-    def add_file(self, file_data: Dict[str, Any], directory_id: Optional[int] = None) -> int:
+    def add_file(self, file_data: Dict[str, Any], task_id: Optional[int] = None) -> int:
         """Add a single file record, return file_id"""
         pass
 

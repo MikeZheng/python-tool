@@ -108,3 +108,16 @@ export interface BatchDeduplicateResult {
   total_space_saved: number;
   error?: string;
 }
+
+// 扫描任务类型
+export interface Task {
+  id: number;
+  directory_path: string;
+  status: string;
+  scan_started_at: string | null;
+  scan_ended_at: string | null;
+  total_files: number;
+  processed_files: number;
+  error_message: string | null;
+  created_at: string;
+}

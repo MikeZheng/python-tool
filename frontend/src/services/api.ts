@@ -35,26 +35,6 @@ export const configApi = {
   }
 };
 
-// 目录API
-export const directoryApi = {
-  getDirectories: async (): Promise<ApiResponse<Directory[]>> => {
-    const response = await apiClient.get('/directories');
-    return response.data;
-  },
-  addDirectory: async (directory: string): Promise<ApiResponse<{ directory_id: number; message: string }>> => {
-    const response = await apiClient.post('/directories', { directory });
-    return response.data;
-  },
-  deleteDirectory: async (directoryId: number): Promise<ApiResponse<{ message: string }>> => {
-    const response = await apiClient.delete(`/directories/${directoryId}`);
-    return response.data;
-  },
-  rescanDirectory: async (directoryId: number): Promise<ApiResponse<{ message: string }>> => {
-    const response = await apiClient.post(`/directories/${directoryId}/rescan`);
-    return response.data;
-  }
-};
-
 // 扫描进度API
 export const scanApi = {
   getProgress: async (): Promise<ApiResponse<ScanProgress>> => {

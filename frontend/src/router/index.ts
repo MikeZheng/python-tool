@@ -16,7 +16,7 @@ const router = createRouter({
     {
       path: '/scan',
       name: 'Scan',
-      component: () => import('../views/Scan.vue')
+      component: () => import('../views/TaskManager.vue')
     },
     {
       path: '/duplicates',

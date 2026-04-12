@@ -100,3 +100,17 @@ class ProgressService:
         """Check if a scan is in progress"""
         progress = self.storage.get_scan_progress()
         return progress.get('is_scanning', False) if progress else False
+
+    def pause_scan(self) -> None:
+        """Mark scan as paused"""
+        existing = self.storage.get_scan_progress()
+        if existing:
+            progress = {
+                'is_scanning': False,
+                'current_file': 'Scan paused',
+                'processed_files': existing.get('processed_files', 0),
+                'total_files': existing.get('total_files', 0),
+                'started_at': existing.get('started_at')
+            }
+            self.storage.update_scan_progress(progress)
+        logging.info("Scan paused")

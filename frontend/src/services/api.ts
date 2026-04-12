@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { ApiResponse, DashboardStats, Config, Directory, ScanProgress, DuplicatesResponse, HistoryResponse, DeduplicateResult, BatchDeduplicateResult } from '../types';
+import type { ApiResponse, DashboardStats, Config, Directory, ScanProgress, HistoryResponse, DeduplicateResult, BatchDeduplicateResult, Task } from '../types';
 
 // API基础URL
 const API_BASE = 'http://localhost:5000/api';
@@ -85,6 +85,34 @@ export const duplicatesApi = {
 export const historyApi = {
   getHistory: async (page: number = 1, limit: number = 20): Promise<ApiResponse<HistoryResponse>> => {
     const response = await apiClient.get(`/history?page=${page}&limit=${limit}`);
+    return response.data;
+  }
+};
+
+// 任务管理API
+export const taskApi = {
+  getTasks: async (): Promise<ApiResponse<Task[]>> => {
+    const response = await apiClient.get('/tasks');
+    return response.data;
+  },
+  addTask: async (directory: string): Promise<ApiResponse<{ task_id: number; message: string }>> => {
+    const response = await apiClient.post('/tasks', { directory });
+    return response.data;
+  },
+  getTask: async (taskId: number): Promise<ApiResponse<Task>> => {
+    const response = await apiClient.get(`/tasks/${taskId}`);
+    return response.data;
+  },
+  deleteTask: async (taskId: number): Promise<ApiResponse<{ message: string }>> => {
+    const response = await apiClient.delete(`/tasks/${taskId}`);
+    return response.data;
+  },
+  retryTask: async (taskId: number): Promise<ApiResponse<{ message: string }>> => {
+    const response = await apiClient.post(`/tasks/${taskId}/retry`);
+    return response.data;
+  },
+  getTaskQueue: async (): Promise<ApiResponse<Task[]>> => {
+    const response = await apiClient.get('/tasks/queue');
     return response.data;
   }
 };

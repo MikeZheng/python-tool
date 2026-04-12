@@ -76,8 +76,15 @@ export const taskApi = {
     return response.data;
   },
   addTask: async (directory: string): Promise<ApiResponse<{ task_id: number; message: string }>> => {
-    const response = await apiClient.post('/tasks', { directory });
-    return response.data;
+    try {
+      const response = await apiClient.post('/tasks', { directory });
+      return response.data;
+    } catch (error: any) {
+      if (error.response && error.response.status === 400 && error.response.data) {
+        return error.response.data;
+      }
+      throw error;
+    }
   },
   getTask: async (taskId: number): Promise<ApiResponse<Task>> => {
     const response = await apiClient.get(`/tasks/${taskId}`);

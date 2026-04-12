@@ -105,6 +105,14 @@ def scan_directory_task(directory_id: int, directory_path: str, task_id: int = N
 
         for file_path in files:
             try:
+                # Check if task is paused
+                if task_id:
+                    task = storage.get_scan_task(task_id)
+                    if task and task['status'] == 'paused':
+                        logging.info(f"Task {task_id} has been paused")
+                        progress_svc.pause_scan()
+                        return
+
                 # Check if file has been modified
                 if not is_file_modified(file_path):
                     processed += 1

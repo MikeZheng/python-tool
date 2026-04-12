@@ -23,7 +23,10 @@ export const useTaskStore = defineStore('tasks', {
         const response = await taskApi.getTasks();
         if (response.success && response.data) {
           this.tasks = response.data;
-          this.runningTask = this.tasks.find(task => task.status === 'running') || null;
+          // 同时检查running和paused状态
+          this.runningTask = this.tasks.find(task => task.status === 'running' || task.status === 'paused') || null;
+          // 从数据库中获取queued状态的任务
+          this.queuedTasks = this.tasks.filter(task => task.status === 'queued');
         }
       } catch (error) {
         console.error('Error fetching tasks:', error);
@@ -33,14 +36,8 @@ export const useTaskStore = defineStore('tasks', {
     },
 
     async fetchTaskQueue() {
-      try {
-        const response = await taskApi.getTaskQueue();
-        if (response.success && response.data) {
-          this.queuedTasks = response.data;
-        }
-      } catch (error) {
-        console.error('Error fetching task queue:', error);
-      }
+      // 现在从fetchTasks中获取queued任务，这个方法保留以保持兼容性
+      await this.fetchTasks();
     },
 
     async addTask(directory: string) {
@@ -89,6 +86,38 @@ export const useTaskStore = defineStore('tasks', {
       } catch (error) {
         console.error('Error retrying task:', error);
         return { success: false, error: '重试任务失败' };
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    async pauseTask(taskId: number) {
+      this.loading = true;
+      try {
+        const response = await taskApi.pauseTask(taskId);
+        if (response.success) {
+          await this.fetchTasks();
+        }
+        return response;
+      } catch (error) {
+        console.error('Error pausing task:', error);
+        return { success: false, error: '暂停任务失败' };
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    async resumeTask(taskId: number) {
+      this.loading = true;
+      try {
+        const response = await taskApi.resumeTask(taskId);
+        if (response.success) {
+          await this.fetchTasks();
+        }
+        return response;
+      } catch (error) {
+        console.error('Error resuming task:', error);
+        return { success: false, error: '恢复任务失败' };
       } finally {
         this.loading = false;
       }

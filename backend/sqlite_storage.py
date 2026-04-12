@@ -44,6 +44,7 @@ class SQLiteStorage(StorageInterface):
                 file_size INTEGER NOT NULL,
                 sha256 TEXT NOT NULL,
                 directory_id INTEGER,
+                task_id INTEGER,
                 earliest_time TEXT,
                 time_sources TEXT,
                 file_type TEXT DEFAULT 'other',
@@ -120,6 +121,21 @@ class SQLiteStorage(StorageInterface):
             )
         ''')
 
+        # Create scan_tasks table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS scan_tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                directory_path TEXT NOT NULL,
+                status TEXT DEFAULT 'queued',
+                scan_started_at TIMESTAMP,
+                scan_ended_at TIMESTAMP,
+                total_files INTEGER DEFAULT 0,
+                processed_files INTEGER DEFAULT 0,
+                error_message TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
         # Add missing columns to existing tables (for migration)
         self._migrate_database(cursor)
 
@@ -136,6 +152,7 @@ class SQLiteStorage(StorageInterface):
         # Add new columns if they don't exist
         new_columns = [
             ('directory_id', 'INTEGER'),
+            ('task_id', 'INTEGER'),
             ('earliest_time', 'TEXT'),
             ('time_sources', 'TEXT'),
             ('file_type', "TEXT DEFAULT 'other'"),
@@ -527,15 +544,15 @@ class SQLiteStorage(StorageInterface):
 
     # ==================== File Methods ====================
 
-    def add_file(self, file_data: Dict[str, Any], directory_id: Optional[int] = None) -> int:
+    def add_file(self, file_data: Dict[str, Any], directory_id: Optional[int] = None, task_id: Optional[int] = None) -> int:
         """Add a single file record, return file_id"""
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
 
         cursor.execute('''
             INSERT OR REPLACE INTO files (filename, filepath, creation_time, file_size, sha256,
-                                         directory_id, earliest_time, time_sources, file_type)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                         directory_id, task_id, earliest_time, time_sources, file_type)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             file_data['filename'],
             file_data['filepath'],
@@ -543,6 +560,7 @@ class SQLiteStorage(StorageInterface):
             file_data['file_size'],
             file_data['sha256'],
             directory_id,
+            task_id,
             file_data.get('earliest_time'),
             json.dumps(file_data.get('time_sources', {})),
             file_data.get('file_type', 'other')
@@ -698,6 +716,212 @@ class SQLiteStorage(StorageInterface):
 
         return count
 
+    # ==================== Scan Tasks Methods ====================
+
+    def add_scan_task(self, directory_path: str) -> int:
+        """Add a new scan task, return task_id"""
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            INSERT INTO scan_tasks (directory_path, status, created_at)
+            VALUES (?, 'queued', CURRENT_TIMESTAMP)
+        ''', (directory_path,))
+
+        task_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        logging.info(f"Added scan task: {directory_path} (id={task_id})")
+        return task_id
+
+    def get_scan_tasks(self) -> List[Dict[str, Any]]:
+        """Get all scan tasks"""
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT id, directory_path, status, scan_started_at, scan_ended_at, 
+                   total_files, processed_files, photo_count, video_count, 
+                   duplicate_count, error_message, created_at
+            FROM scan_tasks
+            ORDER BY created_at DESC
+        ''')
+        rows = cursor.fetchall()
+        conn.close()
+
+        return [{
+            'id': row[0],
+            'directory_path': row[1],
+            'status': row[2],
+            'scan_started_at': row[3],
+            'scan_ended_at': row[4],
+            'total_files': row[5],
+            'processed_files': row[6],
+            'photo_count': row[7],
+            'video_count': row[8],
+            'duplicate_count': row[9],
+            'error_message': row[10],
+            'created_at': row[11]
+        } for row in rows]
+
+    def get_scan_task(self, task_id: int) -> Optional[Dict[str, Any]]:
+        """Get a specific scan task"""
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT id, directory_path, status, scan_started_at, scan_ended_at, 
+                   total_files, processed_files, photo_count, video_count, 
+                   duplicate_count, error_message, created_at
+            FROM scan_tasks WHERE id = ?
+        ''', (task_id,))
+        row = cursor.fetchone()
+        conn.close()
+
+        if row:
+            return {
+                'id': row[0],
+                'directory_path': row[1],
+                'status': row[2],
+                'scan_started_at': row[3],
+                'scan_ended_at': row[4],
+                'total_files': row[5],
+                'processed_files': row[6],
+                'photo_count': row[7],
+                'video_count': row[8],
+                'duplicate_count': row[9],
+                'error_message': row[10],
+                'created_at': row[11]
+            }
+        return None
+
+    def update_scan_task_status(self, task_id: int, status: str) -> None:
+        """Update scan task status"""
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            UPDATE scan_tasks SET status = ? WHERE id = ?
+        ''', (status, task_id))
+
+        conn.commit()
+        conn.close()
+        logging.info(f"Updated scan task {task_id} status to {status}")
+
+    def update_scan_task_start(self, task_id: int) -> None:
+        """Update scan task start time"""
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            UPDATE scan_tasks SET status = 'running', scan_started_at = CURRENT_TIMESTAMP 
+            WHERE id = ?
+        ''', (task_id,))
+
+        conn.commit()
+        conn.close()
+
+    def update_scan_task_end(self, task_id: int, stats: Dict[str, Any]) -> None:
+        """Update scan task end time and stats"""
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            UPDATE scan_tasks SET 
+                status = 'completed', 
+                scan_ended_at = CURRENT_TIMESTAMP, 
+                total_files = ?, 
+                photo_count = ?, 
+                video_count = ?, 
+                duplicate_count = ?
+            WHERE id = ?
+        ''', (
+            stats.get('total_files', 0),
+            stats.get('photo_count', 0),
+            stats.get('video_count', 0),
+            stats.get('duplicate_count', 0),
+            task_id
+        ))
+
+        conn.commit()
+        conn.close()
+
+    def update_scan_task_error(self, task_id: int, error_message: str) -> None:
+        """Update scan task with error"""
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            UPDATE scan_tasks SET 
+                status = 'failed', 
+                scan_ended_at = CURRENT_TIMESTAMP, 
+                error_message = ?
+            WHERE id = ?
+        ''', (error_message, task_id))
+
+        conn.commit()
+        conn.close()
+
+    def delete_scan_task(self, task_id: int) -> None:
+        """Delete a scan task"""
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        # Delete associated files
+        cursor.execute('DELETE FROM files WHERE task_id = ?', (task_id,))
+        # Delete task record
+        cursor.execute('DELETE FROM scan_tasks WHERE id = ?', (task_id,))
+
+        conn.commit()
+        conn.close()
+        logging.info(f"Deleted scan task {task_id}")
+
+    def get_queued_scan_tasks(self) -> List[Dict[str, Any]]:
+        """Get queued scan tasks"""
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT id, directory_path, status, created_at
+            FROM scan_tasks
+            WHERE status = 'queued'
+            ORDER BY created_at ASC
+        ''')
+        rows = cursor.fetchall()
+        conn.close()
+
+        return [{
+            'id': row[0],
+            'directory_path': row[1],
+            'status': row[2],
+            'created_at': row[3]
+        } for row in rows]
+
+    def get_running_scan_task(self) -> Optional[Dict[str, Any]]:
+        """Get currently running scan task"""
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT id, directory_path, status, scan_started_at, 
+                   total_files, processed_files
+            FROM scan_tasks
+            WHERE status = 'running'
+        ''')
+        row = cursor.fetchone()
+        conn.close()
+
+        if row:
+            return {
+                'id': row[0],
+                'directory_path': row[1],
+                'status': row[2],
+                'scan_started_at': row[3],
+                'total_files': row[4],
+                'processed_files': row[5]
+            }
+        return None
+
     # ==================== Dashboard Methods ====================
 
     def get_dashboard_stats(self) -> Dict[str, Any]:
@@ -756,3 +980,165 @@ class SQLiteStorage(StorageInterface):
             'space_saved': space_saved or 0,
             'total_operations': total_operations
         }
+
+    # ==================== Scan Tasks Methods ====================
+
+    def add_scan_task(self, directory_path: str) -> int:
+        """Add a new scan task, return task_id"""
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            INSERT INTO scan_tasks (directory_path, status)
+            VALUES (?, 'queued')
+        ''', (directory_path,))
+
+        task_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+
+        logging.info(f"Added scan task for directory: {directory_path} (id={task_id})")
+        return task_id
+
+    def get_scan_task(self, task_id: int) -> Optional[Dict[str, Any]]:
+        """Get a specific scan task"""
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT id, directory_path, status, scan_started_at, scan_ended_at, 
+                   total_files, processed_files, error_message, created_at
+            FROM scan_tasks WHERE id = ?
+        ''', (task_id,))
+        row = cursor.fetchone()
+        conn.close()
+
+        if row:
+            return {
+                'id': row[0],
+                'directory_path': row[1],
+                'status': row[2],
+                'scan_started_at': row[3],
+                'scan_ended_at': row[4],
+                'total_files': row[5],
+                'processed_files': row[6],
+                'error_message': row[7],
+                'created_at': row[8]
+            }
+        return None
+
+    def get_scan_tasks(self) -> List[Dict[str, Any]]:
+        """Get all scan tasks"""
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT id, directory_path, status, scan_started_at, scan_ended_at, 
+                   total_files, processed_files, error_message, created_at
+            FROM scan_tasks
+            ORDER BY created_at DESC
+        ''')
+        rows = cursor.fetchall()
+        conn.close()
+
+        return [{
+            'id': row[0],
+            'directory_path': row[1],
+            'status': row[2],
+            'scan_started_at': row[3],
+            'scan_ended_at': row[4],
+            'total_files': row[5],
+            'processed_files': row[6],
+            'error_message': row[7],
+            'created_at': row[8]
+        } for row in rows]
+
+    def update_scan_task(self, task_id: int, task_data: Dict[str, Any]) -> None:
+        """Update scan task information"""
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        # Build update query
+        set_clauses = []
+        params = []
+
+        for key, value in task_data.items():
+            set_clauses.append(f"{key} = ?")
+            params.append(value)
+
+        params.append(task_id)
+
+        if set_clauses:
+            query = f"UPDATE scan_tasks SET {', '.join(set_clauses)} WHERE id = ?"
+            cursor.execute(query, params)
+            conn.commit()
+
+        conn.close()
+
+    def delete_scan_task(self, task_id: int) -> None:
+        """Delete a scan task"""
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        cursor.execute('DELETE FROM scan_tasks WHERE id = ?', (task_id,))
+        conn.commit()
+        conn.close()
+
+        logging.info(f"Deleted scan task: {task_id}")
+
+    def get_queued_tasks(self) -> List[Dict[str, Any]]:
+        """Get queued scan tasks"""
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT id, directory_path, status, scan_started_at, scan_ended_at, 
+                   total_files, processed_files, error_message, created_at
+            FROM scan_tasks
+            WHERE status = 'queued'
+            ORDER BY created_at ASC
+        ''')
+        rows = cursor.fetchall()
+        conn.close()
+
+        return [{
+            'id': row[0],
+            'directory_path': row[1],
+            'status': row[2],
+            'scan_started_at': row[3],
+            'scan_ended_at': row[4],
+            'total_files': row[5],
+            'processed_files': row[6],
+            'error_message': row[7],
+            'created_at': row[8]
+        } for row in rows]
+
+    def get_running_task(self) -> Optional[Dict[str, Any]]:
+        """Get current running scan task"""
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT id, directory_path, status, scan_started_at, scan_ended_at, 
+                   total_files, processed_files, error_message, created_at
+            FROM scan_tasks
+            WHERE status = 'running'
+            ORDER BY scan_started_at DESC
+            LIMIT 1
+        ''')
+        row = cursor.fetchone()
+        conn.close()
+
+        if row:
+            return {
+                'id': row[0],
+                'directory_path': row[1],
+                'status': row[2],
+                'scan_started_at': row[3],
+                'scan_ended_at': row[4],
+                'total_files': row[5],
+                'processed_files': row[6],
+                'error_message': row[7],
+                'created_at': row[8]
+            }
+        return None

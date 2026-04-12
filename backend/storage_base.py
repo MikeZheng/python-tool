@@ -82,11 +82,6 @@ class StorageInterface(ABC):
         """Delete a scanned directory and its associated files"""
         pass
 
-    @abstractmethod
-    def directory_exists(self, directory_path: str) -> bool:
-        """Check if directory already scanned"""
-        pass
-
     # ==================== Scan Progress Methods ====================
 
     @abstractmethod

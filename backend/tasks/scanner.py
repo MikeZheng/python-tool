@@ -9,11 +9,18 @@ from dependencies import (
     get_progress_service
 )
 
-def scan_directory_task(directory_id: int, directory_path: str):
+def scan_directory_task(directory_id: int, directory_path: str, task_id: int = None):
     """Background task to scan a directory"""
     storage = get_storage()
     time_svc = get_time_service()
     progress_svc = get_progress_service()
+    
+    # Update task status to running if task_id is provided
+    if task_id:
+        storage.update_scan_task(task_id, {
+            'status': 'running',
+            'scan_started_at': datetime.now().isoformat()
+        })
 
     def calculate_sha256(file_path: str) -> Optional[str]:
         """Calculate SHA256 hash of a file"""
@@ -34,12 +41,36 @@ def scan_directory_task(directory_id: int, directory_path: str):
                 files.append(os.path.join(root, filename))
         return files
 
+    def is_file_modified(file_path: str) -> bool:
+        """Check if file has been modified since last scan"""
+        try:
+            file_record = storage.get_file_by_path(file_path)
+            if not file_record:
+                return True
+            
+            stat_info = os.stat(file_path)
+            current_mtime = stat_info.st_mtime
+            current_size = stat_info.st_size
+            
+            # Compare with stored values
+            # Note: We don't have mtime in the database yet, so for now always return True
+            # This will be implemented in a future update
+            return True
+        except Exception:
+            return True
+
     try:
-        logging.info(f"Starting scan for directory: {directory_path}")
+        logging.info(f"Starting scan for directory: {directory_path} (task_id: {task_id})")
 
         # Collect files
         files = collect_files(directory_path)
         total_files = len(files)
+
+        # Update task total files if task_id is provided
+        if task_id:
+            storage.update_scan_task(task_id, {
+                'total_files': total_files
+            })
 
         if total_files == 0:
             storage.update_directory_stats(directory_id, {
@@ -49,6 +80,15 @@ def scan_directory_task(directory_id: int, directory_path: str):
                 'other_count': 0,
                 'duplicate_count': 0
             })
+            
+            # Update task status if task_id is provided
+            if task_id:
+                storage.update_scan_task(task_id, {
+                    'status': 'completed',
+                    'scan_ended_at': datetime.now().isoformat(),
+                    'processed_files': 0
+                })
+            
             progress_svc.complete_scan()
             return
 
@@ -60,12 +100,26 @@ def scan_directory_task(directory_id: int, directory_path: str):
         photo_count = 0
         video_count = 0
         other_count = 0
+        current_sha256s = set()
+        current_files = []
 
         for file_path in files:
             try:
+                # Check if file has been modified
+                if not is_file_modified(file_path):
+                    processed += 1
+                    progress_svc.update_progress(file_path, processed)
+                    continue
+
                 # Update progress
                 processed += 1
                 progress_svc.update_progress(file_path, processed)
+
+                # Update task progress if task_id is provided
+                if task_id:
+                    storage.update_scan_task(task_id, {
+                        'processed_files': processed
+                    })
 
                 # Get file stats
                 stat_info = os.stat(file_path)
@@ -102,34 +156,59 @@ def scan_directory_task(directory_id: int, directory_path: str):
                     'time_sources': time_sources,
                     'file_type': file_type
                 }
-                storage.add_file(file_data, directory_id)
+                storage.add_file(file_data, directory_id, task_id)
+                
+                # Track current files for duplicate counting
+                current_sha256s.add(sha256)
+                current_files.append(file_data)
 
             except Exception as e:
                 logging.error(f"Error processing file {file_path}: {e}")
 
-        # Count duplicates
+        # Count duplicates within current scan
         duplicate_count = 0
-        groups = storage.get_duplicate_groups()
-        for group in groups:
-            # Check if any file in group is from this directory
-            for f in group:
-                file_record = storage.get_file_by_path(f['filepath'])
-                if file_record:
-                    duplicate_count += 1
-                    break
+        sha256_counts = {}
+        for file_data in current_files:
+            sha256 = file_data['sha256']
+            if sha256 in sha256_counts:
+                sha256_counts[sha256] += 1
+            else:
+                sha256_counts[sha256] = 1
+        
+        for count in sha256_counts.values():
+            if count > 1:
+                duplicate_count += count
 
         # Update directory stats
-        storage.update_directory_stats(directory_id, {
+        stats = {
             'total_files': total_files,
             'photo_count': photo_count,
             'video_count': video_count,
             'other_count': other_count,
             'duplicate_count': duplicate_count
-        })
+        }
+        storage.update_directory_stats(directory_id, stats)
+
+        # Update task status if task_id is provided
+        if task_id:
+            storage.update_scan_task(task_id, {
+                'status': 'completed',
+                'scan_ended_at': datetime.now().isoformat(),
+                'processed_files': processed
+            })
 
         progress_svc.complete_scan()
-        logging.info(f"Completed scan for directory: {directory_path}")
+        logging.info(f"Completed scan for directory: {directory_path} (task_id: {task_id})")
 
     except Exception as e:
-        logging.error(f"Scan failed for directory {directory_path}: {e}")
-        progress_svc.fail_scan(str(e))
+        error_message = str(e)
+        logging.error(f"Scan failed for directory {directory_path} (task_id: {task_id}): {error_message}")
+        progress_svc.fail_scan(error_message)
+        
+        # Update task status if task_id is provided
+        if task_id:
+            storage.update_scan_task(task_id, {
+                'status': 'failed',
+                'scan_ended_at': datetime.now().isoformat(),
+                'error_message': error_message
+            })

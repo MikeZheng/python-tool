@@ -154,3 +154,40 @@ class StorageInterface(ABC):
     def get_dashboard_stats(self) -> Dict[str, Any]:
         """Get dashboard statistics"""
         pass
+
+    # ==================== Scan Tasks Methods ====================
+
+    @abstractmethod
+    def add_scan_task(self, directory_path: str) -> int:
+        """Add a new scan task, return task_id"""
+        pass
+
+    @abstractmethod
+    def get_scan_task(self, task_id: int) -> Optional[Dict[str, Any]]:
+        """Get a specific scan task"""
+        pass
+
+    @abstractmethod
+    def get_scan_tasks(self) -> List[Dict[str, Any]]:
+        """Get all scan tasks"""
+        pass
+
+    @abstractmethod
+    def update_scan_task(self, task_id: int, task_data: Dict[str, Any]) -> None:
+        """Update scan task information"""
+        pass
+
+    @abstractmethod
+    def delete_scan_task(self, task_id: int) -> None:
+        """Delete a scan task"""
+        pass
+
+    @abstractmethod
+    def get_queued_tasks(self) -> List[Dict[str, Any]]:
+        """Get queued scan tasks"""
+        pass
+
+    @abstractmethod
+    def get_running_task(self) -> Optional[Dict[str, Any]]:
+        """Get current running scan task"""
+        pass

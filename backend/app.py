@@ -8,6 +8,7 @@ from routes.duplicate_routes import duplicate_bp
 from routes.history_routes import history_bp
 from routes.dashboard_routes import dashboard_bp
 from routes.progress_routes import progress_bp
+from routes.task_routes import task_bp
 
 app = Flask(__name__)
 CORS(app)
@@ -29,6 +30,7 @@ app.register_blueprint(duplicate_bp, url_prefix='/api')
 app.register_blueprint(history_bp, url_prefix='/api')
 app.register_blueprint(dashboard_bp, url_prefix='/api')
 app.register_blueprint(progress_bp, url_prefix='/api')
+app.register_blueprint(task_bp, url_prefix='/api')
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

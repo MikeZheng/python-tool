@@ -2,16 +2,20 @@
   <div :class="['border rounded-lg overflow-hidden', isEarliest ? 'border-green-500 bg-green-50' : 'border-gray-200']">
     <div v-if="isImage" class="h-32 bg-gray-100 relative">
       <img 
-        :src="file.filepath" 
+        :src="getFileUrl(file.filepath)" 
         :alt="file.filename"
-        class="w-full h-full object-cover"
+        class="w-full h-full object-contain bg-gray-100"
         @error="handleImageError"
       >
     </div>
-    <div v-else-if="isVideo" class="h-32 bg-gray-800 flex items-center justify-center text-white">
-      <svg class="w-12 h-12" fill="currentColor" viewBox="0 0 20 20">
-        <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 001 1h3l4 4V8.618a1 1 0 01-.563-.894L14.553 7.106zM15 8v4H5V8h10z"/>
-      </svg>
+    <div v-else-if="isVideo" class="h-32 bg-gray-800 relative">
+      <video 
+        :src="getFileUrl(file.filepath)" 
+        class="w-full h-full object-contain bg-black"
+        controls
+        preload="metadata"
+        @error="handleVideoError"
+      />
     </div>
     <div v-else class="h-32 bg-gray-100 flex items-center justify-center text-gray-400">
       <svg class="w-12 h-12" fill="currentColor" viewBox="0 0 20 20">
@@ -67,6 +71,18 @@ const isVideo = computed(() => {
 const handleImageError = (event: Event) => {
   const target = event.target as HTMLImageElement;
   target.parentElement!.innerHTML = '<div class="h-full flex items-center justify-center text-gray-400">无预览</div>';
+};
+
+const handleVideoError = (event: Event) => {
+  const target = event.target as HTMLVideoElement;
+  target.parentElement!.innerHTML = '<div class="h-full flex items-center justify-center text-gray-400">视频无法播放</div>';
+};
+
+const getFileUrl = (filePath: string): string => {
+  // 对文件路径进行URL编码，确保特殊字符被正确处理
+  const encodedPath = encodeURIComponent(filePath);
+  // 返回后端文件服务的URL
+  return `http://localhost:5000/api/files/${encodedPath}`;
 };
 
 const formatFileSize = (bytes: number): string => {

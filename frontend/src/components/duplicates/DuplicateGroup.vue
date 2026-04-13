@@ -1,9 +1,15 @@
 <template>
   <div class="bg-white rounded-lg shadow overflow-hidden" :data-sha256="group[0].sha256">
     <div class="px-6 py-4 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
-      <div>
-        <div class="text-sm text-gray-500">SHA256</div>
-        <div class="font-mono text-xs text-gray-600">{{ group[0].sha256.substring(0, 16) }}...</div>
+      <div class="flex items-center gap-2 relative">
+        <span class="text-sm text-gray-500">SHA256:</span>
+        <span 
+          class="font-mono text-xs text-gray-600 cursor-pointer hover:text-indigo-600 relative group"
+          @click="copySha256(group[0].sha256)"
+          :title="group[0].sha256"
+        >
+          {{ group[0].sha256.substring(0, 32) }}...
+        </span>
       </div>
       <div class="flex items-center gap-4">
         <span class="text-sm text-gray-500">{{ group.length }} 个文件</span>
@@ -41,7 +47,10 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import FileCard from './FileCard.vue';
+import { useToast } from '../../composables/useToast';
 import type { DuplicateGroup } from '../../types';
+
+const { showToast } = useToast();
 
 const props = defineProps<{
   group: DuplicateGroup;
@@ -71,5 +80,15 @@ const emit = defineEmits<{
 const handleSelect = (event: Event) => {
   const target = event.target as HTMLInputElement;
   emit('select', props.group[0].sha256, target.checked);
+};
+
+const copySha256 = async (sha256: string) => {
+  try {
+    await navigator.clipboard.writeText(sha256);
+    showToast('SHA256 已复制到剪贴板');
+  } catch (err) {
+    console.error('无法复制 SHA256:', err);
+    showToast('复制失败', 'error');
+  }
 };
 </script>

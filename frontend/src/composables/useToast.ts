@@ -6,10 +6,11 @@ interface Toast {
   type: 'success' | 'error' | 'info';
 }
 
-export function useToast() {
-  const toasts = ref<Toast[]>([]);
-  let toastId = 0;
+// 单例模式，确保整个应用只有一个toasts数组实例
+const toasts = ref<Toast[]>([]);
+let toastId = 0;
 
+export function useToast() {
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
     const id = toastId++;
     toasts.value.push({ id, message, type });

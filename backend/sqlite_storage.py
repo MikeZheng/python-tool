@@ -155,6 +155,7 @@ class SQLiteStorage(StorageInterface):
             ('file_type', "TEXT DEFAULT 'other'"),
             ('is_kept', 'BOOLEAN DEFAULT FALSE'),
             ('new_path', 'TEXT'),
+            ('mtime', 'REAL'),
         ]
 
         for col_name, col_type in new_columns:
@@ -530,8 +531,8 @@ class SQLiteStorage(StorageInterface):
 
         cursor.execute('''
             INSERT OR REPLACE INTO files (filename, filepath, creation_time, file_size, sha256,
-                                          task_id, earliest_time, time_sources, file_type)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                          task_id, earliest_time, time_sources, file_type, mtime)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             file_data['filename'],
             file_data['filepath'],
@@ -541,7 +542,8 @@ class SQLiteStorage(StorageInterface):
             task_id,
             file_data.get('earliest_time'),
             json.dumps(file_data.get('time_sources', {})),
-            file_data.get('file_type', 'other')
+            file_data.get('file_type', 'other'),
+            file_data.get('mtime')
         ))
 
         file_id = cursor.lastrowid
@@ -604,7 +606,7 @@ class SQLiteStorage(StorageInterface):
         cursor = conn.cursor()
 
         cursor.execute('''
-            SELECT id, filename, filepath, creation_time, file_size, sha256, earliest_time, file_type, is_kept
+            SELECT id, filename, filepath, creation_time, file_size, sha256, earliest_time, file_type, is_kept, mtime
             FROM files WHERE filepath = ?
         ''', (filepath,))
         row = cursor.fetchone()
@@ -620,7 +622,8 @@ class SQLiteStorage(StorageInterface):
                 'sha256': row[5],
                 'earliest_time': row[6],
                 'file_type': row[7] or 'other',
-                'is_kept': bool(row[8])
+                'is_kept': bool(row[8]),
+                'mtime': row[9]
             }
         return None
 

@@ -47,15 +47,17 @@ def scan_directory_task(directory_path: str, task_id: int = None):
             file_record = storage.get_file_by_path(file_path)
             if not file_record:
                 return True
-            
+
             stat_info = os.stat(file_path)
-            current_mtime = stat_info.st_mtime
-            current_size = stat_info.st_size
-            
-            # Compare with stored values
-            # Note: We don't have mtime in the database yet, so for now always return True
-            # This will be implemented in a future update
-            return True
+
+            if stat_info.st_size != file_record.get('file_size'):
+                return True
+
+            stored_mtime = file_record.get('mtime')
+            if stored_mtime is not None and stat_info.st_mtime != stored_mtime:
+                return True
+
+            return False
         except Exception:
             return True
 
@@ -167,7 +169,8 @@ def scan_directory_task(directory_path: str, task_id: int = None):
                     'sha256': sha256,
                     'earliest_time': earliest_time,
                     'time_sources': time_sources,
-                    'file_type': file_type
+                    'file_type': file_type,
+                    'mtime': stat_info.st_mtime
                 }
                 file_id = storage.add_file(file_data, task_id)
                 

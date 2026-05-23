@@ -19,18 +19,8 @@ class StorageInterface(ABC):
         pass
 
     @abstractmethod
-    def save_duplicates(self, duplicates: Dict[str, List[Dict[str, Union[str, int]]]]) -> None:
-        """Save duplicate files information"""
-        pass
-
-    @abstractmethod
     def delete_file(self, filepath: str) -> None:
         """delete one file"""
-        pass
-
-    @abstractmethod
-    def refresh_duplicates(self) -> None:
-        """Refresh duplicates by removing entries for non-existent files"""
         pass
 
     @abstractmethod

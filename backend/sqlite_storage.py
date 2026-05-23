@@ -271,11 +271,6 @@ class SQLiteStorage(StorageInterface):
         conn.close()
         logging.info(f"Saved {inserted_count} file records to database")
 
-    def save_duplicates(self, duplicates: Dict[str, List[Dict[str, Union[str, int]]]]) -> None:
-        """Save duplicate files information - now a no-op since we query directly"""
-        logging.info("Skipping duplicate save operation - duplicates are queried directly from files table")
-        pass
-
     def delete_file(self, filepath: str) -> None:
         """delete one file"""
         logging.info(f"Deleting file record: {filepath}")
@@ -285,26 +280,6 @@ class SQLiteStorage(StorageInterface):
         conn.commit()
         conn.close()
         logging.info("Delete file completed")
-
-    def refresh_duplicates(self) -> None:
-        """Refresh duplicates by removing entries for files that no longer exist"""
-        logging.info("Refreshing files database - removing entries for non-existent files")
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-
-        cursor.execute('SELECT filepath, sha256 FROM files')
-        files = cursor.fetchall()
-
-        deleted_count = 0
-        for filepath, sha256 in files:
-            if not os.path.exists(filepath):
-                cursor.execute('DELETE FROM files WHERE filepath = ?', (filepath,))
-                logging.debug(f"Removed non-existent file from database: {filepath}")
-                deleted_count += 1
-
-        conn.commit()
-        conn.close()
-        logging.info(f"Refreshed files database. Removed {deleted_count} non-existent files")
 
     def get_duplicate_groups(self, limit: Optional[int] = None) -> List[List[Dict[str, Union[str, int]]]]:
         """Get duplicate file groups from database for HTML viewer"""

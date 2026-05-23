@@ -49,4 +49,6 @@ def serve_file(file_path):
         return {'success': False, 'error': str(e)}, 500
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    debug = os.environ.get('FLASK_DEBUG', '0').lower() in ('1', 'true', 'yes')
+    port = int(os.environ.get('FLASK_PORT', 5000))
+    app.run(debug=debug, port=port)

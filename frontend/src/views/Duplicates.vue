@@ -28,7 +28,6 @@
             type="checkbox" 
             id="select-all"
             v-model="selectAll"
-            @change="toggleSelectAll"
             class="w-4 h-4 text-indigo-600 rounded"
           >
           <label for="select-all" class="text-sm text-gray-700">全选</label>
@@ -86,8 +85,20 @@ const duplicatesStore = useDuplicatesStore();
 const { showToast } = useToast();
 
 const filterType = ref('all');
-const selectAll = ref(false);
 const selectedDuplicates = ref<Set<string>>(new Set());
+
+const selectAll = computed({
+  get: () =>
+    filteredGroups.value.length > 0 &&
+    filteredGroups.value.every(g => selectedDuplicates.value.has(g[0].sha256)),
+  set: (val: boolean) => {
+    if (val) {
+      filteredGroups.value.forEach(g => selectedDuplicates.value.add(g[0].sha256));
+    } else {
+      selectedDuplicates.value.clear();
+    }
+  }
+});
 
 const currentPage = computed(() => duplicatesStore.currentPage);
 const totalPages = computed(() => duplicatesStore.totalPages);
@@ -104,17 +115,6 @@ const loadPage = async (page: number) => {
   if (page < 1 || page > totalPages.value) return;
   await duplicatesStore.fetchDuplicates(page);
   selectedDuplicates.value.clear();
-  selectAll.value = false;
-};
-
-const toggleSelectAll = () => {
-  if (selectAll.value) {
-    filteredGroups.value.forEach(group => {
-      selectedDuplicates.value.add(group[0].sha256);
-    });
-  } else {
-    selectedDuplicates.value.clear();
-  }
 };
 
 const updateSelected = (sha256: string, selected: boolean) => {
@@ -122,7 +122,6 @@ const updateSelected = (sha256: string, selected: boolean) => {
     selectedDuplicates.value.add(sha256);
   } else {
     selectedDuplicates.value.delete(sha256);
-    selectAll.value = false;
   }
 };
 
@@ -149,7 +148,6 @@ const batchDeduplicate = async () => {
     showToast(`批量去重完成，成功 ${result.data.success_count} 个，失败 ${result.data.error_count} 个，释放 ${formatFileSize(result.data.total_space_saved)}`);
     await duplicatesStore.fetchDuplicates(currentPage.value);
     selectedDuplicates.value.clear();
-    selectAll.value = false;
   } else {
     showToast('批量去重失败: ' + (result.error || '未知错误'), 'error');
   }

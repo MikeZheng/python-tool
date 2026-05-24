@@ -825,16 +825,25 @@ class SQLiteStorage(StorageInterface):
             'pause_data': row[13]
         } for row in rows]
 
+    _ALLOWED_SCAN_TASK_COLUMNS = frozenset({
+        'directory_path', 'status', 'scan_started_at', 'scan_ended_at',
+        'total_files', 'processed_files', 'photo_count', 'video_count',
+        'other_count', 'duplicate_count', 'error_message', 'cancelled_at',
+        'pause_data'
+    })
+
     def update_scan_task(self, task_id: int, task_data: Dict[str, Any]) -> None:
         """Update scan task information"""
         with closing(sqlite3.connect(DB_PATH)) as conn:
             cursor = conn.cursor()
 
-            # Build update query
             set_clauses = []
             params = []
 
             for key, value in task_data.items():
+                if key not in self._ALLOWED_SCAN_TASK_COLUMNS:
+                    logging.warning(f"Rejected invalid scan_task column: {key}")
+                    continue
                 set_clauses.append(f"{key} = ?")
                 params.append(value)
 

@@ -163,6 +163,21 @@ class StorageInterface(ABC):
         pass
 
     @abstractmethod
+    def add_scan_file_mapping(self, task_id: int, file_id: int, is_duplicate: bool = False) -> None:
+        """Add a scan file mapping record"""
+        pass
+
+    @abstractmethod
+    def cancel_task(self, task_id: int) -> None:
+        """Cancel a scan task"""
+        pass
+
+    @abstractmethod
+    def mark_file_kept(self, file_id: int, new_path: str) -> None:
+        """Mark file as kept after deduplication"""
+        pass
+
+    @abstractmethod
     def get_queued_tasks(self) -> List[Dict[str, Any]]:
         """Get queued scan tasks"""
         pass

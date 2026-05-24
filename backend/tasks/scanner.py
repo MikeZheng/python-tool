@@ -210,6 +210,19 @@ def scan_directory_task(directory_path: str, task_id: int = None):
                 earliest_dt, time_sources = time_svc.extract_earliest_time(file_path)
                 earliest_time = earliest_dt.isoformat() if earliest_dt else None
 
+                # Re-check task status after expensive operations to narrow cancel/pause race
+                if task_id:
+                    task = storage.get_scan_task(task_id)
+                    if task and task['status'] in ('paused', 'cancelled'):
+                        logging.info(f"Task {task_id} has been {task['status']} during processing")
+                        if task['status'] == 'paused':
+                            # processed was incremented before SHA256; rewind so file is re-processed on resume
+                            _save_pause_state(storage, task_id, processed - 1, photo_count, video_count, other_count, sha256_counts)
+                            progress_svc.pause_scan()
+                        else:
+                            progress_svc.complete_scan()
+                        return
+
                 # Save to database
                 file_data = {
                     'filename': filename,

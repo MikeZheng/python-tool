@@ -132,9 +132,7 @@ export const useTaskStore = defineStore('tasks', {
     },
 
     async refreshTasks() {
-      await Promise.all([
-        this.fetchTasks()
-      ]);
+      await this.fetchTasks();
     }
   }
 });

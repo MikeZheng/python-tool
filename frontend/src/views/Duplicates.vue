@@ -15,9 +15,8 @@
     <div class="bg-white rounded-lg shadow mb-6 p-4">
       <div class="flex gap-4 items-center">
         <span class="text-sm font-medium text-gray-700">筛选:</span>
-        <select 
+        <select
           v-model="filterType"
-          @change="filterDuplicates"
           class="border border-gray-300 rounded-md px-3 py-2 text-sm"
         >
           <option value="all">全部</option>
@@ -106,10 +105,6 @@ const loadPage = async (page: number) => {
   await duplicatesStore.fetchDuplicates(page);
   selectedDuplicates.value.clear();
   selectAll.value = false;
-};
-
-const filterDuplicates = () => {
-  // 筛选逻辑已在computed中处理
 };
 
 const toggleSelectAll = () => {

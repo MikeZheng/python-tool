@@ -79,6 +79,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useDuplicatesStore } from '../stores/duplicates';
 import { useToast } from '../composables/useToast';
+import { formatFileSize } from '../utils/format';
 import DuplicateGroup from '../components/duplicates/DuplicateGroup.vue';
 
 
@@ -133,7 +134,7 @@ const updateSelected = (sha256: string, selected: boolean) => {
 const deduplicateGroup = async (sha256: string) => {
   const result = await duplicatesStore.deduplicateGroup(sha256);
   if (result.success && result.data) {
-    showToast(`去重成功，释放 ${formatSpace(result.data.space_saved)}`);
+    showToast(`去重成功，释放 ${formatFileSize(result.data.space_saved)}`);
     await duplicatesStore.fetchDuplicates(currentPage.value);
   } else {
     showToast('去重失败: ' + (result.error || '未知错误'), 'error');
@@ -150,19 +151,13 @@ const batchDeduplicate = async () => {
 
   const result = await duplicatesStore.batchDeduplicate(Array.from(selectedDuplicates.value));
   if (result.success && result.data) {
-    showToast(`批量去重完成，成功 ${result.data.success_count} 个，失败 ${result.data.error_count} 个，释放 ${formatSpace(result.data.total_space_saved)}`);
+    showToast(`批量去重完成，成功 ${result.data.success_count} 个，失败 ${result.data.error_count} 个，释放 ${formatFileSize(result.data.total_space_saved)}`);
     await duplicatesStore.fetchDuplicates(currentPage.value);
     selectedDuplicates.value.clear();
     selectAll.value = false;
   } else {
     showToast('批量去重失败: ' + (result.error || '未知错误'), 'error');
   }
-};
-
-const formatSpace = (bytes: number): string => {
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
-  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
-  return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
 };
 
 onMounted(() => {

@@ -52,6 +52,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { File } from '../../types';
+import { formatFileSize } from '../../utils/format';
 
 const props = defineProps<{
   file: File;
@@ -85,10 +86,4 @@ const getFileUrl = (filePath: string): string => {
   return `http://localhost:5000/api/files/${encodedPath}`;
 };
 
-const formatFileSize = (bytes: number): string => {
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
-  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
-  return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
-};
 </script>

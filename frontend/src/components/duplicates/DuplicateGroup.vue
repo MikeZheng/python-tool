@@ -48,6 +48,7 @@
 import { computed } from 'vue';
 import FileCard from './FileCard.vue';
 import { useToast } from '../../composables/useToast';
+import { formatFileSize } from '../../utils/format';
 import type { DuplicateGroup } from '../../types';
 
 const { showToast } = useToast();
@@ -60,13 +61,6 @@ const props = defineProps<{
 const earliestFile = computed(() => {
   return props.group.find(file => file.is_earliest) || props.group[0];
 });
-
-const formatFileSize = (bytes: number): string => {
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
-  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
-  return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
-};
 
 const formatDate = (dateString: string): string => {
   return new Date(dateString).toLocaleString('zh-CN');

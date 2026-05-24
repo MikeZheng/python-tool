@@ -14,7 +14,7 @@
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-6">
       <StatCard title="总文件数" :value="stats.total_files" color="text-gray-900" size="text-2xl" />
       <StatCard title="重复文件总数" :value="stats.duplicate_files" color="text-orange-600" size="text-2xl" />
-      <StatCard title="已释放空间" :value="formatSpace(stats.space_saved)" color="text-emerald-600" size="text-2xl" />
+      <StatCard title="已释放空间" :value="formatFileSize(stats.space_saved)" color="text-emerald-600" size="text-2xl" />
     </div>
 
     <!-- Recent Activity -->
@@ -32,6 +32,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue';
 import { useDashboardStore } from '../stores/dashboard';
+import { formatFileSize } from '../utils/format';
 import StatCard from '../components/dashboard/StatCard.vue';
 import RecentActivity from '../components/dashboard/RecentActivity.vue';
 
@@ -39,11 +40,6 @@ const dashboardStore = useDashboardStore();
 
 const stats = computed(() => dashboardStore.stats);
 
-const formatSpace = (bytes: number): string => {
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
-  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
-  return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
-};
 
 onMounted(() => {
   dashboardStore.fetchStats();

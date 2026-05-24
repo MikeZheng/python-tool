@@ -39,7 +39,7 @@
               {{ operation.backup_files ? operation.backup_files.length : 0 }}
             </td>
             <td class="px-6 py-4 text-sm text-green-600 font-medium">
-              +{{ formatSpace(operation.space_saved) }}
+              +{{ formatFileSize(operation.space_saved) }}
             </td>
           </tr>
         </tbody>
@@ -72,6 +72,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue';
 import { useHistoryStore } from '../stores/history';
+import { formatFileSize } from '../utils/format';
 
 
 const historyStore = useHistoryStore();
@@ -89,11 +90,6 @@ const formatDate = (dateString: string): string => {
   return new Date(dateString).toLocaleString('zh-CN');
 };
 
-const formatSpace = (bytes: number): string => {
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
-  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
-  return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
-};
 
 onMounted(() => {
   historyStore.fetchHistory(1);

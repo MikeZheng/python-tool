@@ -41,9 +41,9 @@ def scan_directory_task(directory_path: str, task_id: int = None):
                 yield os.path.join(root, filename)
 
     def is_file_modified(file_path: str) -> bool:
-        """Check if file has been modified since last scan"""
+        """Check if file has been modified since last scan using in-memory cache"""
         try:
-            file_record = storage.get_file_by_path(file_path)
+            file_record = file_cache.get(file_path)
             if not file_record:
                 return True
 
@@ -127,6 +127,9 @@ def scan_directory_task(directory_path: str, task_id: int = None):
             progress_svc.complete_scan()
             return
 
+        # Bulk-load existing file cache for fast in-memory modification checks
+        file_cache = storage.load_existing_file_cache()
+
         # Restore state if resuming a paused task
         task = storage.get_scan_task(task_id) if task_id else None
         if task and task.get('processed_files', 0) > 0:
@@ -158,7 +161,7 @@ def scan_directory_task(directory_path: str, task_id: int = None):
                         return
 
                 # Check if file has been modified since last scan
-                if not is_file_modified(file_path):
+                if not is_file_modified(file_path, file_cache):
                     processed += 1
                     progress_svc.update_progress(file_path, processed, task_id)
                     continue

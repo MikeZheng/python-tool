@@ -4,7 +4,7 @@ import logging
 import sys
 import json
 from contextlib import closing
-from typing import Dict, List, Tuple, Optional, Union, Any
+from typing import Dict, List, Optional, Union, Any
 from datetime import datetime
 from storage_base import StorageInterface
 
@@ -214,26 +214,22 @@ class SQLiteStorage(StorageInterface):
 
     # ==================== Existing Methods ====================
 
-    def load_existing_file_cache(self) -> Dict[Tuple[str, int], Dict[str, Union[str, int]]]:
+    def load_existing_file_cache(self) -> Dict[str, Dict[str, Any]]:
         """Load existing file information from database to avoid reprocessing"""
-        file_cache: Dict[Tuple[str, int], Dict[str, Union[str, int]]] = {}
+        file_cache: Dict[str, Dict[str, Any]] = {}
 
         try:
             with closing(sqlite3.connect(DB_PATH)) as conn:
                 cursor = conn.cursor()
 
-                cursor.execute('SELECT filename, filepath, creation_time, file_size, sha256 FROM files')
+                cursor.execute('SELECT filepath, file_size, mtime FROM files')
                 rows = cursor.fetchall()
 
                 for row in rows:
-                    filename, filepath, creation_time, file_size, sha256 = row
-                    cache_key: Tuple[str, int] = (filepath, file_size)
-                    file_cache[cache_key] = {
-                        'filename': filename,
-                        'filepath': filepath,
-                        'creation_time': creation_time,
+                    filepath, file_size, mtime = row
+                    file_cache[filepath] = {
                         'file_size': file_size,
-                        'sha256': sha256
+                        'mtime': mtime
                     }
 
             logging.info(f"Loaded {len(file_cache)} existing file records from database")

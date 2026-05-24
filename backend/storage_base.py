@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Dict, List, Tuple, Optional, Union, Any
-from datetime import datetime
+from typing import Dict, List, Optional, Union, Any
 
 
 class StorageInterface(ABC):
@@ -9,7 +8,7 @@ class StorageInterface(ABC):
     # ==================== Existing Methods ====================
 
     @abstractmethod
-    def load_existing_file_cache(self) -> Dict[Tuple[str, int], Dict[str, Union[str, int]]]:
+    def load_existing_file_cache(self) -> Dict[str, Dict[str, Any]]:
         """Load existing file information to avoid reprocessing"""
         pass
 

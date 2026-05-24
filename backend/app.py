@@ -11,7 +11,7 @@ from routes.duplicate_routes import duplicate_bp
 from routes.history_routes import history_bp
 from routes.dashboard_routes import dashboard_bp
 from routes.progress_routes import progress_bp
-from routes.task_routes import task_bp
+from routes.task_routes import task_bp, _schedule_queued_tasks
 
 app = Flask(__name__)
 app.config['RATELIMIT_STORAGE_URI'] = "memory://"
@@ -41,6 +41,9 @@ app.register_blueprint(history_bp, url_prefix='/api')
 app.register_blueprint(dashboard_bp, url_prefix='/api')
 app.register_blueprint(progress_bp, url_prefix='/api')
 app.register_blueprint(task_bp, url_prefix='/api')
+
+# Auto-start any queued tasks that exist on startup
+_schedule_queued_tasks()
 
 @app.route('/api/files/<path:file_path>')
 def serve_file(file_path):

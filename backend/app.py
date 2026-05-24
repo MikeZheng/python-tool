@@ -1,5 +1,7 @@
 from flask import Flask, send_file
 from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 import logging
 from logging.handlers import RotatingFileHandler
 import os
@@ -12,7 +14,15 @@ from routes.progress_routes import progress_bp
 from routes.task_routes import task_bp
 
 app = Flask(__name__)
+app.config['RATELIMIT_STORAGE_URI'] = "memory://"
+
 CORS(app)
+
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per minute", "10 per second"]
+)
 
 # Configure logging with rotation (max 10MB, keep 3 backups)
 logging.basicConfig(

@@ -1,21 +1,25 @@
 <template>
   <div :class="['border rounded-lg overflow-hidden', isEarliest ? 'border-green-500 bg-green-50' : 'border-gray-200']">
     <div v-if="isImage" class="h-32 bg-gray-100 relative">
-      <img 
-        :src="getFileUrl(file.filepath)" 
+      <img
+        v-if="!imageError"
+        :src="getFileUrl(file.filepath)"
         :alt="file.filename"
         class="w-full h-full object-contain bg-gray-100"
-        @error="handleImageError"
+        @error="imageError = true"
       >
+      <div v-else class="h-full flex items-center justify-center text-gray-400">无预览</div>
     </div>
     <div v-else-if="isVideo" class="h-32 bg-gray-800 relative">
-      <video 
-        :src="getFileUrl(file.filepath)" 
+      <video
+        v-if="!videoError"
+        :src="getFileUrl(file.filepath)"
         class="w-full h-full object-contain bg-black"
         controls
         preload="metadata"
-        @error="handleVideoError"
+        @error="videoError = true"
       />
+      <div v-else class="h-full flex items-center justify-center text-gray-400">视频无法播放</div>
     </div>
     <div v-else class="h-32 bg-gray-100 flex items-center justify-center text-gray-400">
       <svg class="w-12 h-12" fill="currentColor" viewBox="0 0 20 20">
@@ -50,7 +54,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { ref, computed } from 'vue';
 import type { File } from '../../types';
 import { formatFileSize } from '../../utils/format';
 
@@ -58,6 +62,9 @@ const props = defineProps<{
   file: File;
   isEarliest: boolean;
 }>();
+
+const imageError = ref(false);
+const videoError = ref(false);
 
 const isImage = computed(() => {
   const ext = props.file.filename.toLowerCase().substring(props.file.filename.lastIndexOf('.'));
@@ -69,21 +76,8 @@ const isVideo = computed(() => {
   return ['.mp4', '.mov', '.avi', '.mkv', '.wmv'].includes(ext);
 });
 
-const handleImageError = (event: Event) => {
-  const target = event.target as HTMLImageElement;
-  target.parentElement!.innerHTML = '<div class="h-full flex items-center justify-center text-gray-400">无预览</div>';
-};
-
-const handleVideoError = (event: Event) => {
-  const target = event.target as HTMLVideoElement;
-  target.parentElement!.innerHTML = '<div class="h-full flex items-center justify-center text-gray-400">视频无法播放</div>';
-};
-
 const getFileUrl = (filePath: string): string => {
-  // 对文件路径进行URL编码，确保特殊字符被正确处理
   const encodedPath = encodeURIComponent(filePath);
-  // 返回后端文件服务的URL
   return `http://localhost:5000/api/files/${encodedPath}`;
 };
-
 </script>

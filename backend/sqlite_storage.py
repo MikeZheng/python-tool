@@ -289,6 +289,7 @@ class SQLiteStorage(StorageInterface):
                 WHERE f1.sha256 IN (
                     SELECT f2.sha256
                     FROM files f2
+                    WHERE f2.is_kept IS NULL OR f2.is_kept = FALSE
                     GROUP BY f2.sha256
                     HAVING COUNT(*) > 1
                 )
@@ -562,7 +563,7 @@ class SQLiteStorage(StorageInterface):
 
             cursor.execute('''
                 SELECT id, filename, filepath, creation_time, file_size, sha256, earliest_time, file_type, is_kept
-                FROM files WHERE sha256 = ?
+                FROM files WHERE sha256 = ? AND (is_kept IS NULL OR is_kept = FALSE)
             ''', (sha256,))
             rows = cursor.fetchall()
 

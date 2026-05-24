@@ -16,14 +16,19 @@
     </div>
     <div v-else-if="isVideo" class="h-32 bg-gray-800 relative">
       <video
-        v-if="!videoError"
         :src="getFileUrl(file.filepath)"
         class="w-full h-full object-contain bg-black"
         controls
-        preload="metadata"
-        @error="videoError = true"
+        preload="none"
       />
-      <div v-else class="h-full flex items-center justify-center text-gray-400">视频无法播放</div>
+      <a
+        :href="getFileUrl(file.filepath)"
+        target="_blank"
+        class="absolute top-1 right-1 px-1.5 py-0.5 bg-black/60 text-white text-xs rounded hover:bg-black/80"
+        title="在新窗口打开"
+      >
+        ↗
+      </a>
     </div>
     <div v-else class="h-32 bg-gray-100 flex items-center justify-center text-gray-400">
       <svg class="w-12 h-12" fill="currentColor" viewBox="0 0 20 20">
@@ -72,7 +77,6 @@ const emit = defineEmits<{
 }>();
 
 const imageError = ref(false);
-const videoError = ref(false);
 
 const isImage = computed(() => {
   const ext = props.file.filename.toLowerCase().substring(props.file.filename.lastIndexOf('.'));

@@ -20,6 +20,13 @@ def _safe_json_load(value: Optional[str]) -> Any:
         return []
 
 
+def _utc_to_iso(value: Optional[str]) -> Optional[str]:
+    """Convert SQLite CURRENT_TIMESTAMP (UTC, 'YYYY-MM-DD HH:MM:SS') to ISO 8601 with Z suffix"""
+    if not value:
+        return value
+    return f"{value.replace(' ', 'T')}Z"
+
+
 class SQLiteStorage(StorageInterface):
     """SQLite-based storage implementation"""
 
@@ -328,8 +335,8 @@ class SQLiteStorage(StorageInterface):
             return {
                 'storage_directory': row[0],
                 'backup_directory': row[1],
-                'created_at': row[2],
-                'updated_at': row[3]
+                'created_at': _utc_to_iso(row[2]),
+                'updated_at': _utc_to_iso(row[3])
             }
         return None
 
@@ -621,7 +628,7 @@ class SQLiteStorage(StorageInterface):
             'earliest_time': row[6],
             'file_size': row[7],
             'space_saved': row[8],
-            'created_at': row[9]
+            'created_at': _utc_to_iso(row[9])
         } for row in rows]
 
     def get_operation_count(self) -> int:
@@ -736,7 +743,7 @@ class SQLiteStorage(StorageInterface):
                 'other_count': row[9] or 0,
                 'duplicate_count': row[10] or 0,
                 'error_message': row[11],
-                'created_at': row[12],
+                'created_at': _utc_to_iso(row[12]),
                 'pause_data': row[13]
             }
         return None
@@ -768,7 +775,7 @@ class SQLiteStorage(StorageInterface):
             'other_count': row[9] or 0,
             'duplicate_count': row[10] or 0,
             'error_message': row[11],
-            'created_at': row[12],
+            'created_at': _utc_to_iso(row[12]),
             'pause_data': row[13]
         } for row in rows]
 

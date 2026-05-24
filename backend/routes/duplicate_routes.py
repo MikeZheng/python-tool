@@ -43,13 +43,15 @@ def get_duplicates():
 
         return jsonify({
             'success': True,
-            'data': groups,
-            'pagination': {
-                'page': page,
-                'limit': limit,
-                'total_groups': total_groups,
-                'total_pages': total_pages,
-                'has_more': page < total_pages
+            'data': {
+                'groups': groups,
+                'pagination': {
+                    'page': page,
+                    'limit': limit,
+                    'total_groups': total_groups,
+                    'total_pages': total_pages,
+                    'has_more': page < total_pages
+                }
             }
         })
     except Exception as e:
@@ -73,6 +75,8 @@ def delete_group(sha256: str):
     """Permanently delete all files in a duplicate group"""
     try:
         result = get_file_ops_service().delete_group(sha256)
+        if result.get('success'):
+            return jsonify({'success': True, 'data': result})
         return jsonify(result)
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500

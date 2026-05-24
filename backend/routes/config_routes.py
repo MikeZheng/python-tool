@@ -14,7 +14,7 @@ def get_config():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-@config_bp.route('/config', methods=['POST'])
+@config_bp.route('/config', methods=['PUT', 'POST'])
 def update_config():
     """Update configuration"""
     try:

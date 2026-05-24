@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { ApiResponse, DashboardStats, Config, Directory, ScanProgress, HistoryResponse, DeduplicateResult, BatchDeduplicateResult, Task } from '../types';
+import type { ApiResponse, DashboardStats, Config, ScanProgress, DuplicatesResponse, HistoryResponse, DeduplicateResult, BatchDeduplicateResult, Task } from '../types';
 
 // API base URL — uses Vite proxy in dev, same-origin in production
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
@@ -45,7 +45,7 @@ export const scanApi = {
 
 // 重复文件API
 export const duplicatesApi = {
-  getDuplicates: async (page: number = 1, limit: number = 20): Promise<any> => {
+  getDuplicates: async (page: number = 1, limit: number = 20): Promise<ApiResponse<DuplicatesResponse>> => {
     const response = await apiClient.get(`/duplicates?page=${page}&limit=${limit}`);
     return response.data;
   },

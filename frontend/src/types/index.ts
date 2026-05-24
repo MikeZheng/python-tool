@@ -73,7 +73,7 @@ export interface Pagination {
 
 // 重复文件响应类型
 export interface DuplicatesResponse {
-  data: DuplicateGroup[];
+  groups: DuplicateGroup[];
   pagination: Pagination;
 }
 

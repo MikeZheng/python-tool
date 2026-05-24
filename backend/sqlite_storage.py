@@ -265,7 +265,6 @@ class SQLiteStorage(StorageInterface):
             dup_query = '''
                 SELECT f2.sha256
                 FROM files f2
-                WHERE f2.is_kept IS NULL OR f2.is_kept = FALSE
                 GROUP BY f2.sha256
                 HAVING COUNT(*) > 1
                 ORDER BY f2.sha256
@@ -502,7 +501,7 @@ class SQLiteStorage(StorageInterface):
 
             cursor.execute('''
                 SELECT id, filename, filepath, creation_time, file_size, sha256, earliest_time, file_type, is_kept
-                FROM files WHERE sha256 = ? AND (is_kept IS NULL OR is_kept = FALSE)
+                FROM files WHERE sha256 = ?
             ''', (sha256,))
             rows = cursor.fetchall()
 
@@ -525,7 +524,7 @@ class SQLiteStorage(StorageInterface):
             cursor.execute('''
                 SELECT sha256, COUNT(*)
                 FROM files
-                WHERE sha256 IS NOT NULL AND (is_kept IS NULL OR is_kept = FALSE)
+                WHERE sha256 IS NOT NULL
                 GROUP BY sha256
             ''')
             return dict(cursor.fetchall())

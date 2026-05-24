@@ -74,24 +74,28 @@ class FileOperationsService:
         # 5. Look up DB record before moving file
         file_record = self.storage.get_file_by_path(earliest_file['filepath'])
 
-        # 6. Move earliest file to storage
-        earliest_time = earliest_file.get('earliest_time')
-        if not earliest_time:
-            dt, time_sources = self.time_service.extract_earliest_time(earliest_file['filepath'])
-            if dt:
-                earliest_time = dt.isoformat()
-            else:
-                earliest_time = earliest_file['creation_time']
+        # 6. Move earliest file to storage (skip if already kept at storage location)
+        if earliest_file.get('is_kept'):
+            new_path = earliest_file['filepath']
+            logging.info(f"Earliest file already kept, skipping move: {new_path}")
+        else:
+            earliest_time = earliest_file.get('earliest_time')
+            if not earliest_time:
+                dt, time_sources = self.time_service.extract_earliest_time(earliest_file['filepath'])
+                if dt:
+                    earliest_time = dt.isoformat()
+                else:
+                    earliest_time = earliest_file['creation_time']
 
-        try:
-            new_path = self._move_to_storage(
-                earliest_file['filepath'],
-                earliest_time,
-                storage_dir
-            )
-        except Exception as e:
-            logging.error(f"Failed to move file to storage: {e}")
-            return {'success': False, 'error': f'Failed to move file to storage: {e}'}
+            try:
+                new_path = self._move_to_storage(
+                    earliest_file['filepath'],
+                    earliest_time,
+                    storage_dir
+                )
+            except Exception as e:
+                logging.error(f"Failed to move file to storage: {e}")
+                return {'success': False, 'error': f'Failed to move file to storage: {e}'}
 
         # 7. Update database — mark kept with new path instead of deleting
         if file_record:

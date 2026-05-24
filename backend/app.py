@@ -42,9 +42,6 @@ app.register_blueprint(dashboard_bp, url_prefix='/api')
 app.register_blueprint(progress_bp, url_prefix='/api')
 app.register_blueprint(task_bp, url_prefix='/api')
 
-# Auto-start any queued tasks that exist on startup
-_schedule_queued_tasks()
-
 @app.route('/api/files/<path:file_path>')
 def serve_file(file_path):
     """Serve files for preview"""
@@ -65,4 +62,8 @@ def serve_file(file_path):
 if __name__ == '__main__':
     debug = os.environ.get('FLASK_DEBUG', '0').lower() in ('1', 'true', 'yes')
     port = int(os.environ.get('FLASK_PORT', 5000))
+
+    # Auto-start any queued tasks that exist on startup
+    _schedule_queued_tasks()
+
     app.run(debug=debug, port=port)

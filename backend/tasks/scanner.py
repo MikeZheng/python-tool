@@ -139,6 +139,8 @@ def scan_directory_task(directory_path: str, task_id: int = None):
         task = storage.get_scan_task(task_id) if task_id else None
         if task and task.get('processed_files', 0) > 0:
             processed, photo_count, video_count, other_count, sha256_counts = _load_pause_state(task)
+            if not sha256_counts:
+                sha256_counts = storage.get_all_sha256_counts()
             logging.info(f"Resuming task {task_id} from file {processed}/{total_files}")
         else:
             processed = 0

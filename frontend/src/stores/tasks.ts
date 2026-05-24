@@ -5,15 +5,16 @@ import type { Task } from '../types';
 export const useTaskStore = defineStore('tasks', {
   state: () => ({
     tasks: [] as Task[],
+    runningTasks: [] as Task[],
+    pausedTasks: [] as Task[],
     queuedTasks: [] as Task[],
-    runningTask: null as Task | null,
     loading: false
   }),
 
   getters: {
     completedTasks: (state) => state.tasks.filter(task => task.status === 'completed'),
     failedTasks: (state) => state.tasks.filter(task => task.status === 'failed'),
-    hasRunningTask: (state) => state.runningTask !== null
+    hasActiveTasks: (state) => state.runningTasks.length > 0 || state.pausedTasks.length > 0
   },
 
   actions: {
@@ -23,9 +24,8 @@ export const useTaskStore = defineStore('tasks', {
         const response = await taskApi.getTasks();
         if (response.success && response.data) {
           this.tasks = response.data;
-          // 同时检查running和paused状态
-          this.runningTask = this.tasks.find(task => task.status === 'running' || task.status === 'paused') || null;
-          // 从数据库中获取queued状态的任务
+          this.runningTasks = this.tasks.filter(task => task.status === 'running');
+          this.pausedTasks = this.tasks.filter(task => task.status === 'paused');
           this.queuedTasks = this.tasks.filter(task => task.status === 'queued');
         }
       } catch (error) {

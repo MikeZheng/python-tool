@@ -26,64 +26,82 @@
       </div>
     </div>
 
-    <!-- Current Running Task -->
-    <div v-if="taskStore.runningTask && taskStore.runningTask.status === 'running'" class="bg-blue-50 rounded-lg shadow mb-6 p-6">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-lg font-semibold text-blue-900">当前运行任务</h2>
-        <div class="flex gap-2">
-          <button
-            @click="pauseTask"
-            :disabled="taskStore.loading"
-            class="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white font-medium rounded-md text-sm disabled:opacity-50"
-          >
-            暂停任务
-          </button>
-          <button
-            @click="cancelTask(taskStore.runningTask.id)"
-            :disabled="taskStore.loading"
-            class="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-md text-sm disabled:opacity-50"
-          >
-            作废任务
-          </button>
-        </div>
+    <!-- Running Tasks -->
+    <div v-if="taskStore.runningTasks.length > 0" class="bg-blue-50 rounded-lg shadow mb-6">
+      <div class="px-6 py-4 border-b border-blue-200">
+        <h2 class="text-lg font-semibold text-blue-900">运行中任务 ({{ taskStore.runningTasks.length }})</h2>
       </div>
-      <div class="mb-4">
-        <div class="text-sm font-medium text-gray-900 mb-2">{{ taskStore.runningTask.directory_path }}</div>
-        <div class="w-full bg-blue-200 rounded-full h-4 mb-2">
-          <div 
-            class="bg-blue-600 h-4 rounded-full transition-all duration-300"
-            :style="{ width: (taskStore.runningTask.processed_files / taskStore.runningTask.total_files) * 100 + '%' }"
-          ></div>
+      <div v-for="task in taskStore.runningTasks" :key="task.id" class="p-6 border-b border-blue-200 last:border-b-0">
+        <div class="flex items-center justify-between mb-4">
+          <div class="text-sm font-medium text-gray-900">{{ task.directory_path }}</div>
+          <div class="flex gap-2">
+            <button
+              @click="pauseTask(task.id)"
+              :disabled="taskStore.loading"
+              class="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white font-medium rounded-md text-sm disabled:opacity-50"
+            >
+              暂停任务
+            </button>
+            <button
+              @click="cancelTask(task.id)"
+              :disabled="taskStore.loading"
+              class="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-md text-sm disabled:opacity-50"
+            >
+              作废任务
+            </button>
+          </div>
         </div>
-        <div class="text-sm text-blue-800 flex justify-between">
-          <span>已处理: {{ taskStore.runningTask.processed_files }} / {{ taskStore.runningTask.total_files }}</span>
-          <span>{{ Math.round((taskStore.runningTask.processed_files / taskStore.runningTask.total_files) * 100) }}%</span>
+        <div class="mb-2">
+          <div class="w-full bg-blue-200 rounded-full h-4 mb-2">
+            <div
+              class="bg-blue-600 h-4 rounded-full transition-all duration-300"
+              :style="{ width: task.total_files > 0 ? (task.processed_files / task.total_files) * 100 + '%' : '0%' }"
+            ></div>
+          </div>
+          <div class="text-sm text-blue-800 flex justify-between">
+            <span>已处理: {{ task.processed_files }} / {{ task.total_files }}</span>
+            <span>{{ task.total_files > 0 ? Math.round((task.processed_files / task.total_files) * 100) : 0 }}%</span>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- Paused Task -->
-    <div v-if="taskStore.runningTask && taskStore.runningTask.status === 'paused'" class="bg-yellow-50 rounded-lg shadow mb-6 p-6">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-lg font-semibold text-yellow-900">已暂停任务</h2>
-        <button 
-          @click="resumeTask"
-          class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-md text-sm"
-        >
-          恢复任务
-        </button>
+    <!-- Paused Tasks -->
+    <div v-if="taskStore.pausedTasks.length > 0" class="bg-yellow-50 rounded-lg shadow mb-6">
+      <div class="px-6 py-4 border-b border-yellow-200">
+        <h2 class="text-lg font-semibold text-yellow-900">已暂停任务 ({{ taskStore.pausedTasks.length }})</h2>
       </div>
-      <div class="mb-4">
-        <div class="text-sm font-medium text-gray-900 mb-2">{{ taskStore.runningTask.directory_path }}</div>
-        <div class="w-full bg-yellow-200 rounded-full h-4 mb-2">
-          <div 
-            class="bg-yellow-600 h-4 rounded-full transition-all duration-300"
-            :style="{ width: (taskStore.runningTask.processed_files / taskStore.runningTask.total_files) * 100 + '%' }"
-          ></div>
+      <div v-for="task in taskStore.pausedTasks" :key="task.id" class="p-6 border-b border-yellow-200 last:border-b-0">
+        <div class="flex items-center justify-between mb-4">
+          <div class="text-sm font-medium text-gray-900">{{ task.directory_path }}</div>
+          <div class="flex gap-2">
+            <button
+              @click="resumeTask(task.id)"
+              :disabled="taskStore.loading"
+              class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-md text-sm disabled:opacity-50"
+            >
+              恢复任务
+            </button>
+            <button
+              @click="cancelTask(task.id)"
+              :disabled="taskStore.loading"
+              class="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-md text-sm disabled:opacity-50"
+            >
+              作废任务
+            </button>
+          </div>
         </div>
-        <div class="text-sm text-yellow-800 flex justify-between">
-          <span>已处理: {{ taskStore.runningTask.processed_files }} / {{ taskStore.runningTask.total_files }}</span>
-          <span>{{ Math.round((taskStore.runningTask.processed_files / taskStore.runningTask.total_files) * 100) }}%</span>
+        <div class="mb-2">
+          <div class="w-full bg-yellow-200 rounded-full h-4 mb-2">
+            <div
+              class="bg-yellow-600 h-4 rounded-full transition-all duration-300"
+              :style="{ width: task.total_files > 0 ? (task.processed_files / task.total_files) * 100 + '%' : '0%' }"
+            ></div>
+          </div>
+          <div class="text-sm text-yellow-800 flex justify-between">
+            <span>已处理: {{ task.processed_files }} / {{ task.total_files }}</span>
+            <span>{{ task.total_files > 0 ? Math.round((task.processed_files / task.total_files) * 100) : 0 }}%</span>
+          </div>
         </div>
       </div>
     </div>
@@ -213,10 +231,8 @@ const retryTask = async (taskId: number) => {
   }
 };
 
-const pauseTask = async () => {
-  if (!taskStore.runningTask) return;
-  
-  const result = await taskStore.pauseTask(taskStore.runningTask.id);
+const pauseTask = async (taskId: number) => {
+  const result = await taskStore.pauseTask(taskId);
   if (result.success) {
     showToast('任务已暂停');
   } else {
@@ -224,10 +240,8 @@ const pauseTask = async () => {
   }
 };
 
-const resumeTask = async () => {
-  if (!taskStore.runningTask) return;
-  
-  const result = await taskStore.resumeTask(taskStore.runningTask.id);
+const resumeTask = async (taskId: number) => {
+  const result = await taskStore.resumeTask(taskId);
   if (result.success) {
     showToast('任务已恢复');
     startPolling();

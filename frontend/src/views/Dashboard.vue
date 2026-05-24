@@ -42,6 +42,9 @@ const stats = computed(() => dashboardStore.stats);
 
 
 onMounted(() => {
-  dashboardStore.fetchStats();
+  Promise.all([
+    dashboardStore.fetchStats(),
+    dashboardStore.fetchRecentActivity()
+  ]);
 });
 </script>

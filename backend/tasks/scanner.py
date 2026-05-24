@@ -34,13 +34,11 @@ def scan_directory_task(directory_path: str, task_id: int = None):
         except Exception:
             return None
 
-    def collect_files(dir_path: str) -> List[str]:
-        """Collect all files from directory"""
-        files = []
+    def iter_files(dir_path: str):
+        """Iterate all files in directory tree (generator, avoids loading all paths at once)"""
         for root, _, filenames in os.walk(dir_path):
             for filename in filenames:
-                files.append(os.path.join(root, filename))
-        return files
+                yield os.path.join(root, filename)
 
     def is_file_modified(file_path: str) -> bool:
         """Check if file has been modified since last scan"""
@@ -100,8 +98,8 @@ def scan_directory_task(directory_path: str, task_id: int = None):
     try:
         logging.info(f"Starting scan for directory: {directory_path} (task_id: {task_id})")
 
-        # Collect files
-        files = collect_files(directory_path)
+        # Collect file paths
+        files = list(iter_files(directory_path))
         total_files = len(files)
 
         # Update task total files if task_id is provided

@@ -10,6 +10,16 @@ from storage_base import StorageInterface
 DB_PATH: str = r"file_database.db"
 
 
+def _safe_json_load(value: Optional[str]) -> Any:
+    """Parse JSON string safely, returning [] on any failure"""
+    if not value:
+        return []
+    try:
+        return json.loads(value)
+    except (json.JSONDecodeError, TypeError):
+        return []
+
+
 class SQLiteStorage(StorageInterface):
     """SQLite-based storage implementation"""
 
@@ -589,7 +599,7 @@ class SQLiteStorage(StorageInterface):
             'sha256': row[2],
             'kept_file_path': row[3],
             'kept_file_new_path': row[4],
-            'backup_files': json.loads(row[5]) if row[5] else [],
+            'backup_files': _safe_json_load(row[5]),
             'earliest_time': row[6],
             'file_size': row[7],
             'space_saved': row[8],

@@ -795,58 +795,12 @@ class SQLiteStorage(StorageInterface):
 
     def get_queued_tasks(self) -> List[Dict[str, Any]]:
         """Get queued scan tasks"""
-        with closing(sqlite3.connect(DB_PATH)) as conn:
-            cursor = conn.cursor()
-
-            cursor.execute('''
-                SELECT id, directory_path, status, scan_started_at, scan_ended_at,
-                       total_files, processed_files, error_message, created_at
-                FROM scan_tasks
-                WHERE status = 'queued'
-                ORDER BY created_at ASC
-            ''')
-            rows = cursor.fetchall()
-
-        return [{
-            'id': row[0],
-            'directory_path': row[1],
-            'status': row[2],
-            'scan_started_at': row[3],
-            'scan_ended_at': row[4],
-            'total_files': row[5],
-            'processed_files': row[6],
-            'error_message': row[7],
-            'created_at': row[8]
-        } for row in rows]
+        return [t for t in self.get_scan_tasks() if t['status'] == 'queued']
 
     def get_running_task(self) -> Optional[Dict[str, Any]]:
         """Get current running scan task"""
-        with closing(sqlite3.connect(DB_PATH)) as conn:
-            cursor = conn.cursor()
-
-            cursor.execute('''
-                SELECT id, directory_path, status, scan_started_at, scan_ended_at,
-                       total_files, processed_files, error_message, created_at
-                FROM scan_tasks
-                WHERE status = 'running'
-                ORDER BY scan_started_at DESC
-                LIMIT 1
-            ''')
-            row = cursor.fetchone()
-
-        if row:
-            return {
-                'id': row[0],
-                'directory_path': row[1],
-                'status': row[2],
-                'scan_started_at': row[3],
-                'scan_ended_at': row[4],
-                'total_files': row[5],
-                'processed_files': row[6],
-                'error_message': row[7],
-                'created_at': row[8]
-            }
-        return None
+        running = [t for t in self.get_scan_tasks() if t['status'] == 'running']
+        return running[0] if running else None
 
     def cancel_task(self, task_id: int) -> None:
         """Cancel a scan task"""

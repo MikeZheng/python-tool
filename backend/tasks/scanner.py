@@ -10,90 +10,95 @@ from dependencies import (
     get_progress_service
 )
 
+def calculate_sha256(file_path: str) -> Optional[str]:
+    """Calculate SHA256 hash of a file"""
+    sha256_hash = hashlib.sha256()
+    try:
+        with open(file_path, "rb") as f:
+            for byte_block in iter(lambda: f.read(4096), b""):
+                sha256_hash.update(byte_block)
+        return sha256_hash.hexdigest()
+    except Exception:
+        return None
+
+
+def iter_files(dir_path: str):
+    """Iterate all files in directory tree (generator, avoids loading all paths at once)"""
+    for root, _, filenames in os.walk(dir_path):
+        for filename in filenames:
+            yield os.path.join(root, filename)
+
+
+def is_file_modified(file_path: str, file_cache: dict) -> bool:
+    """Check if file has been modified since last scan using in-memory cache"""
+    try:
+        file_record = file_cache.get(file_path)
+        if not file_record:
+            return True
+
+        stat_info = os.stat(file_path)
+
+        if stat_info.st_size != file_record.get('file_size'):
+            return True
+
+        stored_mtime = file_record.get('mtime')
+        if stored_mtime is not None and stat_info.st_mtime != stored_mtime:
+            return True
+
+        return False
+    except Exception:
+        return True
+
+
+def _save_pause_state(storage, task_id, processed, photo_count, video_count, other_count, sha256_counts):
+    """Save scan state so it can be resumed later"""
+    pause_data = json.dumps({
+        'processed': processed,
+        'photo_count': photo_count,
+        'video_count': video_count,
+        'other_count': other_count,
+        'sha256_counts': sha256_counts
+    })
+    storage.update_scan_task(task_id, {
+        'processed_files': processed,
+        'photo_count': photo_count,
+        'video_count': video_count,
+        'other_count': other_count,
+        'pause_data': pause_data
+    })
+
+
+def _load_pause_state(task):
+    """Restore scan state from a paused task"""
+    processed = task.get('processed_files', 0)
+    photo_count = task.get('photo_count', 0)
+    video_count = task.get('video_count', 0)
+    other_count = task.get('other_count', 0)
+    sha256_counts = {}
+
+    pause_data = task.get('pause_data')
+    if pause_data:
+        try:
+            saved = json.loads(pause_data)
+            sha256_counts = saved.get('sha256_counts', {})
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    return processed, photo_count, video_count, other_count, sha256_counts
+
+
 def scan_directory_task(directory_path: str, task_id: int = None):
     """Background task to scan a directory"""
     storage = get_storage()
     time_svc = get_time_service()
     progress_svc = get_progress_service()
-    
+
     # Update task status to running if task_id is provided
     if task_id:
         storage.update_scan_task(task_id, {
             'status': 'running',
             'scan_started_at': datetime.now().isoformat()
         })
-
-    def calculate_sha256(file_path: str) -> Optional[str]:
-        """Calculate SHA256 hash of a file"""
-        sha256_hash = hashlib.sha256()
-        try:
-            with open(file_path, "rb") as f:
-                for byte_block in iter(lambda: f.read(4096), b""):
-                    sha256_hash.update(byte_block)
-            return sha256_hash.hexdigest()
-        except Exception:
-            return None
-
-    def iter_files(dir_path: str):
-        """Iterate all files in directory tree (generator, avoids loading all paths at once)"""
-        for root, _, filenames in os.walk(dir_path):
-            for filename in filenames:
-                yield os.path.join(root, filename)
-
-    def is_file_modified(file_path: str) -> bool:
-        """Check if file has been modified since last scan using in-memory cache"""
-        try:
-            file_record = file_cache.get(file_path)
-            if not file_record:
-                return True
-
-            stat_info = os.stat(file_path)
-
-            if stat_info.st_size != file_record.get('file_size'):
-                return True
-
-            stored_mtime = file_record.get('mtime')
-            if stored_mtime is not None and stat_info.st_mtime != stored_mtime:
-                return True
-
-            return False
-        except Exception:
-            return True
-
-    def _save_pause_state(task_id, processed, photo_count, video_count, other_count, sha256_counts):
-        """Save scan state so it can be resumed later"""
-        pause_data = json.dumps({
-            'processed': processed,
-            'photo_count': photo_count,
-            'video_count': video_count,
-            'other_count': other_count,
-            'sha256_counts': sha256_counts
-        })
-        storage.update_scan_task(task_id, {
-            'processed_files': processed,
-            'photo_count': photo_count,
-            'video_count': video_count,
-            'other_count': other_count,
-            'pause_data': pause_data
-        })
-
-    def _load_pause_state(task):
-        """Restore scan state from a paused task"""
-        processed = task.get('processed_files', 0)
-        photo_count = task.get('photo_count', 0)
-        video_count = task.get('video_count', 0)
-        other_count = task.get('other_count', 0)
-        sha256_counts = {}
-
-        pause_data = task.get('pause_data')
-        if pause_data:
-            try:
-                saved = json.loads(pause_data)
-                sha256_counts = saved.get('sha256_counts', {})
-            except (json.JSONDecodeError, TypeError):
-                pass
-
-        return processed, photo_count, video_count, other_count, sha256_counts
 
     try:
         logging.info(f"Starting scan for directory: {directory_path} (task_id: {task_id})")
@@ -152,7 +157,7 @@ def scan_directory_task(directory_path: str, task_id: int = None):
                     task = storage.get_scan_task(task_id)
                     if task and task['status'] == 'paused':
                         logging.info(f"Task {task_id} has been paused, saving state at file {processed}/{total_files}")
-                        _save_pause_state(task_id, processed, photo_count, video_count, other_count, sha256_counts)
+                        _save_pause_state(storage, task_id, processed, photo_count, video_count, other_count, sha256_counts)
                         progress_svc.pause_scan()
                         return
                     if task and task['status'] == 'cancelled':

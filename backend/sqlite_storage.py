@@ -35,6 +35,10 @@ class SQLiteStorage(StorageInterface):
         with closing(sqlite3.connect(DB_PATH)) as conn:
             cursor = conn.cursor()
 
+            # Enable WAL mode for concurrent reads during writes
+            cursor.execute('PRAGMA journal_mode=WAL')
+            cursor.execute('PRAGMA foreign_keys=ON')
+
             # Create files table (with new columns)
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS files (

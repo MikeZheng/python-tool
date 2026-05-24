@@ -145,7 +145,8 @@ def scan_directory_task(directory_path: str, task_id: int = None):
             photo_count = 0
             video_count = 0
             other_count = 0
-            sha256_counts = {}
+            # Seed with existing SHA256 counts for cross-scan duplicate detection
+            sha256_counts = storage.get_all_sha256_counts()
 
         # Start progress
         progress_svc.start_scan(total_files)

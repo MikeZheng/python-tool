@@ -91,6 +91,11 @@ class StorageInterface(ABC):
         pass
 
     @abstractmethod
+    def get_all_sha256_counts(self) -> Dict[str, int]:
+        """Get counts of all SHA256 hashes (for cross-scan duplicate detection)"""
+        pass
+
+    @abstractmethod
     def get_file_by_path(self, filepath: str) -> Optional[Dict[str, Any]]:
         """Get file by filepath"""
         pass

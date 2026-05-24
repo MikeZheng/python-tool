@@ -511,6 +511,18 @@ class SQLiteStorage(StorageInterface):
             'is_kept': bool(row[8])
         } for row in rows]
 
+    def get_all_sha256_counts(self) -> Dict[str, int]:
+        """Get counts of all SHA256 hashes for cross-scan duplicate detection"""
+        with closing(sqlite3.connect(DB_PATH)) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT sha256, COUNT(*)
+                FROM files
+                WHERE sha256 IS NOT NULL AND (is_kept IS NULL OR is_kept = FALSE)
+                GROUP BY sha256
+            ''')
+            return dict(cursor.fetchall())
+
     def get_file_by_path(self, filepath: str) -> Optional[Dict[str, Any]]:
         """Get file by filepath"""
         with closing(sqlite3.connect(DB_PATH)) as conn:

@@ -159,7 +159,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useTaskStore } from '../stores/tasks';
 import { useScanStore } from '../stores/scan';
 import { useToast } from '../composables/useToast';
@@ -170,8 +170,23 @@ const scanStore = useScanStore();
 const { showToast, toasts } = useToast();
 
 const newDirectory = ref('');
-
 let refreshInterval: number | null = null;
+
+const hasActiveTasks = computed(() =>
+  taskStore.tasks.some(t => ['running', 'paused', 'queued'].includes(t.status))
+);
+
+const startPolling = () => {
+  if (refreshInterval) return;
+  refreshInterval = window.setInterval(updateTasks, 3000);
+};
+
+const stopPolling = () => {
+  if (refreshInterval) {
+    clearInterval(refreshInterval);
+    refreshInterval = null;
+  }
+};
 
 const addTask = async () => {
   if (!newDirectory.value) {
@@ -183,6 +198,7 @@ const addTask = async () => {
   if (result.success) {
     showToast('任务已添加到队列');
     newDirectory.value = '';
+    startPolling();
   } else {
     showToast('添加失败: ' + (result.error || '未知错误'), 'error');
   }
@@ -203,6 +219,7 @@ const retryTask = async (taskId: number) => {
   const result = await taskStore.retryTask(taskId);
   if (result.success) {
     showToast('任务已添加到队列');
+    startPolling();
   } else {
     showToast('重试失败: ' + (result.error || '未知错误'), 'error');
   }
@@ -225,6 +242,7 @@ const resumeTask = async () => {
   const result = await taskStore.resumeTask(taskStore.runningTask.id);
   if (result.success) {
     showToast('任务已恢复');
+    startPolling();
   } else {
     showToast('恢复失败: ' + (result.error || '未知错误'), 'error');
   }
@@ -244,11 +262,16 @@ const cancelTask = async (taskId: number) => {
 const updateTasks = async () => {
   await taskStore.refreshTasks();
   await scanStore.fetchProgress();
+  if (!hasActiveTasks.value) {
+    stopPolling();
+  }
 };
 
 onMounted(async () => {
   await updateTasks();
-  refreshInterval = window.setInterval(updateTasks, 3000);
+  if (hasActiveTasks.value) {
+    startPolling();
+  }
 });
 
 onUnmounted(() => {

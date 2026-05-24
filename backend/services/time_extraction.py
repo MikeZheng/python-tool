@@ -38,34 +38,43 @@ class TimeExtractionService:
         (r'signal-(\d{4})-(\d{2})-(\d{2})-(\d{2})-(\d{2})-(\d{2})', None),
     ]
 
+    _exif_available: Optional[bool] = None
+    _ffmpeg_available: Optional[bool] = None
+
     def __init__(self):
         """Initialize TimeExtractionService"""
-        self._exif_available = self._check_exif_library()
-        self._ffmpeg_available = self._check_ffmpeg_library()
 
-    def _check_exif_library(self) -> bool:
-        """Check if EXIF library is available"""
-        try:
-            from PIL import Image
-            from PIL.ExifTags import TAGS
-            return True
-        except ImportError:
-            logging.warning("Pillow not available, EXIF extraction disabled")
-            return False
+    @classmethod
+    def _check_exif_library(cls) -> bool:
+        """Check if EXIF library is available (cached at class level)"""
+        if cls._exif_available is None:
+            try:
+                from PIL import Image
+                from PIL.ExifTags import TAGS
+                cls._exif_available = True
+            except ImportError:
+                logging.warning("Pillow not available, EXIF extraction disabled")
+                cls._exif_available = False
+        return cls._exif_available
 
-    def _check_ffmpeg_library(self) -> bool:
-        """Check if ffprobe is available"""
-        try:
-            result = subprocess.run(
-                ['ffprobe', '-version'],
-                capture_output=True,
-                timeout=5,
-                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
-            )
-            return result.returncode == 0
-        except Exception:
-            logging.warning("ffprobe not available, video metadata extraction disabled")
-            return False
+    @classmethod
+    def _check_ffmpeg_library(cls) -> bool:
+        """Check if ffprobe is available (cached at class level, lazy)"""
+        if cls._ffmpeg_available is None:
+            try:
+                result = subprocess.run(
+                    ['ffprobe', '-version'],
+                    capture_output=True,
+                    timeout=5,
+                    creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
+                )
+                cls._ffmpeg_available = result.returncode == 0
+                if not cls._ffmpeg_available:
+                    logging.warning("ffprobe not available, video metadata extraction disabled")
+            except Exception:
+                logging.warning("ffprobe not available, video metadata extraction disabled")
+                cls._ffmpeg_available = False
+        return cls._ffmpeg_available
 
     def determine_file_type(self, file_path: str) -> str:
         """
@@ -188,7 +197,7 @@ class TimeExtractionService:
         Returns:
             datetime or None
         """
-        if not self._exif_available:
+        if not self._check_exif_library():
             return None
 
         try:
@@ -228,7 +237,7 @@ class TimeExtractionService:
         Returns:
             datetime or None
         """
-        if not self._ffmpeg_available:
+        if not self._check_ffmpeg_library():
             return None
 
         try:

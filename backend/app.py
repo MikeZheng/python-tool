@@ -12,6 +12,7 @@ from routes.history_routes import history_bp
 from routes.dashboard_routes import dashboard_bp
 from routes.progress_routes import progress_bp
 from routes.task_routes import task_bp, _schedule_queued_tasks
+from dependencies import get_storage
 
 app = Flask(__name__)
 app.config['RATELIMIT_STORAGE_URI'] = "memory://"
@@ -62,6 +63,17 @@ def serve_file(file_path):
 if __name__ == '__main__':
     debug = os.environ.get('FLASK_DEBUG', '0').lower() in ('1', 'true', 'yes')
     port = int(os.environ.get('FLASK_PORT', 5000))
+
+    # Reset stuck running/paused tasks (from previous unclean shutdown) back to queued
+    storage = get_storage()
+    for task in storage.get_scan_tasks():
+        if task['status'] in ('running', 'paused'):
+            storage.update_scan_task(task['id'], {
+                'status': 'queued',
+                'scan_started_at': None,
+                'error_message': None
+            })
+            logging.info(f"Reset stuck task {task['id']} ({task['directory_path']}) to queued")
 
     # Auto-start any queued tasks that exist on startup
     _schedule_queued_tasks()

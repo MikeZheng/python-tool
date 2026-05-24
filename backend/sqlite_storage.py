@@ -273,17 +273,23 @@ class SQLiteStorage(StorageInterface):
         with closing(sqlite3.connect(DB_PATH)) as conn:
             cursor = conn.cursor()
 
-            cursor.execute('''
+            # Get top-N hashes with duplicates
+            dup_query = '''
+                SELECT f2.sha256
+                FROM files f2
+                WHERE f2.is_kept IS NULL OR f2.is_kept = FALSE
+                GROUP BY f2.sha256
+                HAVING COUNT(*) > 1
+                ORDER BY f2.sha256
+            '''
+            if limit is not None:
+                dup_query += f' LIMIT {int(limit)}'
+
+            cursor.execute(f'''
                 SELECT f1.sha256, f1.filename, f1.filepath, f1.creation_time, f1.file_size,
                        f1.earliest_time, f1.file_type, f1.is_kept
                 FROM files f1
-                WHERE f1.sha256 IN (
-                    SELECT f2.sha256
-                    FROM files f2
-                    WHERE f2.is_kept IS NULL OR f2.is_kept = FALSE
-                    GROUP BY f2.sha256
-                    HAVING COUNT(*) > 1
-                )
+                WHERE f1.sha256 IN ({dup_query})
                 ORDER BY f1.sha256
             ''')
             rows = cursor.fetchall()
@@ -316,11 +322,8 @@ class SQLiteStorage(StorageInterface):
             if current_group:
                 groups.append(current_group)
 
-        if limit is not None:
-            groups = groups[:limit]
-            logging.info(f"Retrieved {len(groups)} duplicate groups (limited to {limit})")
-        else:
-            logging.info(f"Retrieved {len(groups)} duplicate groups")
+        logging.info(f"Retrieved {len(groups)} duplicate groups"
+                     + (f" (limited to {limit})" if limit else ""))
 
         return groups
 

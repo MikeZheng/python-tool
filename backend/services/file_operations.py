@@ -70,10 +70,12 @@ class FileOperationsService:
                     logging.error(f"Failed to backup file {f['filepath']}: {e}")
                     return {'success': False, 'error': f'Failed to backup file: {e}'}
 
-        # 5. Move earliest file to storage
+        # 5. Look up DB record before moving file
+        file_record = self.storage.get_file_by_path(earliest_file['filepath'])
+
+        # 6. Move earliest file to storage
         earliest_time = earliest_file.get('earliest_time')
         if not earliest_time:
-            # Extract earliest time
             dt, time_sources = self.time_service.extract_earliest_time(earliest_file['filepath'])
             if dt:
                 earliest_time = dt.isoformat()
@@ -90,17 +92,11 @@ class FileOperationsService:
             logging.error(f"Failed to move file to storage: {e}")
             return {'success': False, 'error': f'Failed to move file to storage: {e}'}
 
-        # 6. Update database
-        file_record = self.storage.get_file_by_path(earliest_file['filepath'])
+        # 7. Update database — mark kept with new path instead of deleting
         if file_record:
             self.storage.mark_file_kept(file_record['id'], new_path)
         else:
-            # File was moved, update path in database
-            # Add new record with new path
-            pass
-
-        # Remove old path from database
-        self.storage.delete_file(earliest_file['filepath'])
+            self.storage.delete_file(earliest_file['filepath'])
 
         # 7. Log operation
         file_size = earliest_file['file_size']

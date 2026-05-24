@@ -215,7 +215,7 @@ class SQLiteStorage(StorageInterface):
 
     # ==================== Existing Methods ====================
 
-    def load_existing_file_cache(self) -> Dict[str, Dict[str, Any]]:
+    def load_existing_file_cache(self, directory: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
         """Load existing file information from database to avoid reprocessing"""
         file_cache: Dict[str, Dict[str, Any]] = {}
 
@@ -223,7 +223,14 @@ class SQLiteStorage(StorageInterface):
             with closing(sqlite3.connect(DB_PATH)) as conn:
                 cursor = conn.cursor()
 
-                cursor.execute('SELECT filepath, file_size, mtime FROM files')
+                if directory:
+                    prefix = directory.rstrip('\\/') + os.sep
+                    cursor.execute(
+                        'SELECT filepath, file_size, mtime FROM files WHERE filepath LIKE ?',
+                        (prefix + '%',)
+                    )
+                else:
+                    cursor.execute('SELECT filepath, file_size, mtime FROM files')
                 rows = cursor.fetchall()
 
                 for row in rows:

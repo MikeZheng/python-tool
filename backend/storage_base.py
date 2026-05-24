@@ -8,8 +8,12 @@ class StorageInterface(ABC):
     # ==================== Existing Methods ====================
 
     @abstractmethod
-    def load_existing_file_cache(self) -> Dict[str, Dict[str, Any]]:
-        """Load existing file information to avoid reprocessing"""
+    def load_existing_file_cache(self, directory: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
+        """Load existing file information to avoid reprocessing
+
+        Args:
+            directory: Optional directory path to filter by prefix
+        """
         pass
 
     @abstractmethod

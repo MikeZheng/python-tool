@@ -132,8 +132,8 @@ def scan_directory_task(directory_path: str, task_id: int = None):
             progress_svc.complete_scan()
             return
 
-        # Bulk-load existing file cache for fast in-memory modification checks
-        file_cache = storage.load_existing_file_cache()
+        # Bulk-load existing file cache (filtered by scan directory) for fast in-memory modification checks
+        file_cache = storage.load_existing_file_cache(directory_path)
 
         # Restore state if resuming a paused task
         task = storage.get_scan_task(task_id) if task_id else None

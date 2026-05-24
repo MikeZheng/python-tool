@@ -1,42 +1,49 @@
 import os
+import queue
 import threading
 import logging
 from flask import Blueprint, request, jsonify
 from dependencies import get_storage
 from tasks.scanner import scan_directory_task
 
-# Global task queue management
-task_queue = []
-is_task_running = False
+# Thread-safe task queue
+_task_queue = queue.Queue()
+_processor_started = False
+_processor_lock = threading.Lock()
 
 task_bp = Blueprint('task', __name__)
 
-def process_task_queue():
-    """Process tasks in the queue"""
-    global is_task_running, task_queue
-    
-    while task_queue:
-        task_id = task_queue.pop(0)
-        task = get_storage().get_scan_task(task_id)
-        
-        if task and task['status'] == 'queued':
-            is_task_running = True
-            
-            # Get directory ID or create one
-            directory_path = task['directory_path']
-            
-            # Start scan in background
-            thread = threading.Thread(
-                target=scan_directory_task,
-                args=(directory_path, task_id)
-            )
-            thread.daemon = True
-            thread.start()
-            thread.join()
-            
-            is_task_running = False
-        
-    is_task_running = False
+
+def _ensure_processor():
+    """Start queue processor if not already running"""
+    global _processor_started
+    with _processor_lock:
+        if _processor_started:
+            return
+        _processor_started = True
+    thread = threading.Thread(target=_process_task_queue, daemon=True)
+    thread.start()
+
+
+def _process_task_queue():
+    """Process tasks from the queue sequentially"""
+    while True:
+        task_id = _task_queue.get()
+        try:
+            task = get_storage().get_scan_task(task_id)
+            if task and task['status'] == 'queued':
+                directory_path = task['directory_path']
+                thread = threading.Thread(
+                    target=scan_directory_task,
+                    args=(directory_path, task_id),
+                    daemon=True
+                )
+                thread.start()
+                thread.join()
+        except Exception as e:
+            logging.error(f"Error processing task {task_id}: {e}")
+        finally:
+            _task_queue.task_done()
 
 @task_bp.route('/tasks', methods=['GET'])
 def get_tasks():
@@ -65,16 +72,10 @@ def add_task():
 
         # Add task to database
         task_id = get_storage().add_scan_task(directory_path)
-        
+
         # Add task to queue
-        task_queue.append(task_id)
-        
-        # Start processing queue if not already running
-        global is_task_running
-        if not is_task_running:
-            thread = threading.Thread(target=process_task_queue)
-            thread.daemon = True
-            thread.start()
+        _task_queue.put(task_id)
+        _ensure_processor()
 
         return jsonify({
             'success': True,
@@ -103,11 +104,8 @@ def delete_task(task_id: int):
         if not task:
             return jsonify({'success': False, 'error': 'Task not found'}), 404
         
-        # Remove from queue if it's not running
-        global task_queue
-        if task_id in task_queue:
-            task_queue.remove(task_id)
-        
+        # Cancel in DB first; if still queued, processor will skip it
+        get_storage().cancel_task(task_id)
         get_storage().delete_scan_task(task_id)
         return jsonify({'success': True, 'message': 'Task deleted'})
     except Exception as e:
@@ -139,16 +137,9 @@ def retry_task(task_id: int):
         })
         
         # Add to queue
-        global task_queue
-        task_queue.append(task_id)
-        
-        # Start processing queue if not already running
-        global is_task_running
-        if not is_task_running:
-            thread = threading.Thread(target=process_task_queue)
-            thread.daemon = True
-            thread.start()
-        
+        _task_queue.put(task_id)
+        _ensure_processor()
+
         return jsonify({'success': True, 'message': 'Task added to queue'})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -157,14 +148,7 @@ def retry_task(task_id: int):
 def get_task_queue():
     """Get current task queue"""
     try:
-        global task_queue
-        queued_tasks = []
-        
-        for task_id in task_queue:
-            task = get_storage().get_scan_task(task_id)
-            if task:
-                queued_tasks.append(task)
-        
+        queued_tasks = get_storage().get_queued_tasks()
         return jsonify({'success': True, 'data': queued_tasks})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -208,16 +192,9 @@ def resume_task(task_id: int):
         })
         
         # Add task to queue
-        global task_queue
-        task_queue.append(task_id)
-        
-        # Start processing queue if not already running
-        global is_task_running
-        if not is_task_running:
-            thread = threading.Thread(target=process_task_queue)
-            thread.daemon = True
-            thread.start()
-        
+        _task_queue.put(task_id)
+        _ensure_processor()
+
         return jsonify({'success': True, 'message': 'Task resumed and added to queue'})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -232,13 +209,8 @@ def cancel_task(task_id: int):
         
         if task['status'] in ['completed', 'failed', 'cancelled']:
             return jsonify({'success': False, 'error': 'Task cannot be cancelled'}), 400
-        
-        # Remove from queue if it's not running
-        global task_queue
-        if task_id in task_queue:
-            task_queue.remove(task_id)
-        
-        # Cancel the task
+
+        # Cancel in DB; if queued, processor will skip it on dequeue
         get_storage().cancel_task(task_id)
         
         return jsonify({'success': True, 'message': 'Task cancelled'})

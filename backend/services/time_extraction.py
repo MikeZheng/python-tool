@@ -252,7 +252,7 @@ class TimeExtractionService:
                 '-show_format',
                 '-show_streams',
                 file_path
-            ], capture_output=True, text=True, timeout=30,
+            ], capture_output=True, text=True, timeout=10,
                 creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0)
 
             if result.returncode != 0:

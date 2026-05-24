@@ -2,24 +2,6 @@
   <div class="p-6">
     <h1 class="text-3xl font-bold text-gray-900 mb-6">扫描任务管理</h1>
     
-    <!-- Toast Notifications -->
-    <div class="fixed top-4 right-4 z-50 space-y-2">
-      <div 
-        v-for="toast in toasts" 
-        :key="toast.id"
-        class="bg-white rounded-lg shadow-lg p-4 flex items-center gap-3 animate-fade-in"
-        :class="{
-          'border-l-4 border-green-500': toast.type === 'success',
-          'border-l-4 border-red-500': toast.type === 'error',
-          'border-l-4 border-blue-500': toast.type === 'info'
-        }"
-      >
-        <div class="flex-1">
-          <p class="text-sm font-medium text-gray-900">{{ toast.message }}</p>
-        </div>
-      </div>
-    </div>
-
     <!-- Add New Task -->
     <div class="bg-white rounded-lg shadow mb-6">
       <div class="px-6 py-4 border-b border-gray-200">
@@ -173,7 +155,7 @@ import TaskItem from '../components/tasks/TaskItem.vue';
 
 const taskStore = useTaskStore();
 const scanStore = useScanStore();
-const { showToast, toasts } = useToast();
+const { showToast } = useToast();
 
 const newDirectory = ref('');
 let refreshInterval: number | null = null;

@@ -885,8 +885,9 @@ class SQLiteStorage(StorageInterface):
                 WHERE id = ?
             ''', (task_id,))
 
-            # Delete associated scan_file_mappings
+            # Delete associated scan_file_mappings and files
             cursor.execute('DELETE FROM scan_file_mappings WHERE task_id = ?', (task_id,))
+            cursor.execute('DELETE FROM files WHERE task_id = ?', (task_id,))
 
             conn.commit()
         logging.info(f"Cancelled scan task id={task_id}")

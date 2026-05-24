@@ -2,6 +2,8 @@ import os
 import logging
 from typing import Dict, Any, Optional
 
+from utils import ensure_unique_path, parse_iso_datetime
+
 
 class ConfigService:
     """Service for managing application configuration"""
@@ -108,19 +110,13 @@ class ConfigService:
         Returns:
             Path to the year/month directory
         """
-        from datetime import datetime
-
         config = self.get_config()
         storage_dir = config.get('storage_directory', '')
 
         if not storage_dir:
             raise ValueError("Storage directory not configured")
 
-        # Parse earliest time
-        try:
-            earliest_time = datetime.fromisoformat(earliest_time_str.replace('Z', '+00:00'))
-        except ValueError:
-            earliest_time = datetime.strptime(earliest_time_str, '%Y-%m-%d %H:%M:%S')
+        earliest_time = parse_iso_datetime(earliest_time_str)
 
         # Create year/month structure
         year = earliest_time.year
@@ -152,12 +148,4 @@ class ConfigService:
         filename = os.path.basename(original_path)
         backup_path = os.path.join(backup_dir, filename)
 
-        # Ensure unique filename
-        if os.path.exists(backup_path):
-            base, ext = os.path.splitext(filename)
-            counter = 1
-            while os.path.exists(backup_path):
-                backup_path = os.path.join(backup_dir, f"{base}_{counter}{ext}")
-                counter += 1
-
-        return backup_path
+        return ensure_unique_path(backup_path)

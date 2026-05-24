@@ -5,6 +5,8 @@ import logging
 from datetime import datetime
 from typing import Dict, Any, Optional, List, Tuple
 
+from utils import ensure_unique_path, parse_iso_datetime
+
 
 class FileOperationsService:
     """Service for file operations during deduplication"""
@@ -156,14 +158,7 @@ class FileOperationsService:
         filename = os.path.basename(file_path)
         backup_path = os.path.join(backup_dir, filename)
 
-        # Ensure unique filename
-        if os.path.exists(backup_path):
-            base, ext = os.path.splitext(filename)
-            counter = 1
-            while os.path.exists(backup_path):
-                backup_path = os.path.join(backup_dir, f"{base}_{counter}{ext}")
-                counter += 1
-
+        backup_path = ensure_unique_path(backup_path)
         shutil.move(file_path, backup_path)
         return backup_path
 
@@ -179,11 +174,7 @@ class FileOperationsService:
         Returns:
             New file path
         """
-        # Parse earliest time
-        try:
-            earliest_time = datetime.fromisoformat(earliest_time_str.replace('Z', '+00:00'))
-        except ValueError:
-            earliest_time = datetime.strptime(earliest_time_str, '%Y-%m-%d %H:%M:%S')
+        earliest_time = parse_iso_datetime(earliest_time_str)
 
         # Create year/month structure
         year = str(earliest_time.year)
@@ -198,14 +189,7 @@ class FileOperationsService:
         new_name = self._generate_new_filename(original_name, earliest_time)
         new_path = os.path.join(target_dir, new_name)
 
-        # Ensure unique filename
-        if os.path.exists(new_path):
-            base, ext = os.path.splitext(new_name)
-            counter = 1
-            while os.path.exists(new_path):
-                new_path = os.path.join(target_dir, f"{base}_{counter}{ext}")
-                counter += 1
-
+        new_path = ensure_unique_path(new_path)
         shutil.move(file_path, new_path)
         logging.info(f"Moved file: {file_path} -> {new_path}")
         return new_path

@@ -58,6 +58,10 @@ export const duplicatesApi = {
       sha256_list: sha256List
     });
     return response.data;
+  },
+  deleteGroup: async (sha256: string): Promise<ApiResponse<{ deleted_count: number }>> => {
+    const response = await apiClient.delete(`/duplicates/${sha256}`);
+    return response.data;
   }
 };
 

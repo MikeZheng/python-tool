@@ -42,6 +42,13 @@
       >
         去重
       </button>
+      <button
+        @click="emit('delete', props.group[0].sha256)"
+        :disabled="loading"
+        class="ml-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-md disabled:opacity-50"
+      >
+        删除
+      </button>
     </div>
   </div>
 </template>
@@ -73,6 +80,7 @@ const emit = defineEmits<{
   (e: 'select', sha256: string, selected: boolean): void;
   (e: 'deduplicate', sha256: string): void;
   (e: 'preview', file: FileInfo): void;
+  (e: 'delete', sha256: string): void;
 }>();
 
 const handleSelect = (event: Event) => {

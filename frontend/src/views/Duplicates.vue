@@ -49,6 +49,7 @@
         @select="updateSelected"
         @deduplicate="deduplicateGroup"
         @preview="openPreview"
+        @delete="deleteGroup"
       />
     </div>
 
@@ -170,6 +171,19 @@ const deduplicateGroup = async (sha256: string) => {
     await duplicatesStore.fetchDuplicates(currentPage.value);
   } else {
     showToast('去重失败: ' + (result.error || '未知错误'), 'error');
+  }
+};
+
+const deleteGroup = async (sha256: string) => {
+  const group = filteredGroups.value.find(g => g[0].sha256 === sha256);
+  const count = group ? group.length : 0;
+  if (!confirm(`确定要彻底删除此组的 ${count} 个文件吗？此操作不可恢复！`)) return;
+
+  const result = await duplicatesStore.deleteGroup(sha256);
+  if (result.success && result.data) {
+    showToast(`已删除 ${result.data.deleted_count} 个文件`);
+  } else {
+    showToast('删除失败: ' + (result.error || '未知错误'), 'error');
   }
 };
 

@@ -43,6 +43,22 @@ export const useDuplicatesStore = defineStore('duplicates', {
       }
     },
 
+    async deleteGroup(sha256: string): Promise<ApiResponse<{ deleted_count: number }>> {
+      this.loading = true;
+      try {
+        const response = await duplicatesApi.deleteGroup(sha256);
+        if (response.success) {
+          await this.fetchDuplicates(this.currentPage);
+        }
+        return response;
+      } catch (error) {
+        console.error('Error deleting group:', error);
+        return { success: false, error: '删除失败' };
+      } finally {
+        this.loading = false;
+      }
+    },
+
     async batchDeduplicate(sha256List: string[]): Promise<ApiResponse<BatchDeduplicateResult>> {
       this.loading = true;
       try {

@@ -66,6 +66,16 @@ def deduplicate_single(sha256: str):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@duplicate_bp.route('/duplicates/<sha256>', methods=['DELETE'])
+def delete_group(sha256: str):
+    """Permanently delete all files in a duplicate group"""
+    try:
+        result = get_file_ops_service().delete_group(sha256)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @duplicate_bp.route('/duplicates/batch-deduplicate', methods=['POST'])
 def batch_deduplicate():
     """Batch deduplicate multiple groups"""

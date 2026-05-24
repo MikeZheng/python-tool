@@ -268,3 +268,37 @@ class FileOperationsService:
             'total_space_saved': total_space_saved,
             'results': results
         }
+
+    def delete_group(self, sha256: str) -> Dict[str, Any]:
+        """Permanently delete all files in a duplicate group from disk and database"""
+        files = self.storage.get_files_by_sha256(sha256)
+
+        if not files:
+            return {'success': False, 'error': 'No files found for this SHA256'}
+
+        deleted_count = 0
+        errors = []
+
+        for f in files:
+            filepath = f['filepath']
+            try:
+                if os.path.exists(filepath):
+                    os.remove(filepath)
+                    logging.info(f"Deleted file from disk: {filepath}")
+                else:
+                    logging.warning(f"File not found on disk, removing DB record only: {filepath}")
+                self.storage.delete_file(filepath)
+                deleted_count += 1
+            except OSError as e:
+                logging.error(f"Failed to delete file {filepath}: {e}")
+                errors.append(filepath)
+
+        if errors:
+            return {
+                'success': False,
+                'error': f'Failed to delete {len(errors)} of {len(files)} files',
+                'deleted_count': deleted_count,
+                'failed_paths': errors
+            }
+
+        return {'success': True, 'deleted_count': deleted_count}

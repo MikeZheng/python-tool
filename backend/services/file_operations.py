@@ -61,16 +61,15 @@ class FileOperationsService:
         # 4. Move other files to backup
         backup_paths = []
         for f in other_files:
-            if os.path.exists(f['filepath']):
-                try:
-                    backup_path = self._backup_file(f['filepath'], backup_dir)
-                    backup_paths.append(backup_path)
-                    # Remove from database
-                    self.storage.delete_file(f['filepath'])
-                    logging.info(f"Backed up file: {f['filepath']} -> {backup_path}")
-                except Exception as e:
-                    logging.error(f"Failed to backup file {f['filepath']}: {e}")
-                    return {'success': False, 'error': f'Failed to backup file: {e}'}
+            try:
+                backup_path = self._backup_file(f['filepath'], backup_dir)
+                backup_paths.append(backup_path)
+                # Remove from database
+                self.storage.delete_file(f['filepath'])
+                logging.info(f"Backed up file: {f['filepath']} -> {backup_path}")
+            except Exception as e:
+                logging.error(f"Failed to backup file {f['filepath']}: {e}")
+                return {'success': False, 'error': f'Failed to backup file: {e}'}
 
         # 5. Look up DB record before moving file
         file_record = self.storage.get_file_by_path(earliest_file['filepath'])

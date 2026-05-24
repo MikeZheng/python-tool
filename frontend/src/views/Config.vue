@@ -68,9 +68,10 @@
 
         <!-- Save Button -->
         <div class="flex justify-end">
-          <button 
+          <button
             @click="saveConfig"
-            class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-md"
+            :disabled="configStore.loading"
+            class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-md disabled:opacity-50"
           >
             保存配置
           </button>

@@ -19,24 +19,27 @@
       </div>
     </div>
     <div class="flex gap-2">
-      <button 
+      <button
         v-if="task.status === 'failed'"
         @click="$emit('retry', task.id)"
-        class="px-3 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 text-sm rounded transition-colors"
+        :disabled="loading"
+        class="px-3 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 text-sm rounded transition-colors disabled:opacity-50"
       >
         重试
       </button>
-      <button 
+      <button
         v-if="task.status !== 'completed' && task.status !== 'failed' && task.status !== 'cancelled'"
         @click="$emit('cancel', task.id)"
-        class="px-3 py-1 bg-orange-100 hover:bg-orange-200 text-orange-700 text-sm rounded transition-colors"
+        :disabled="loading"
+        class="px-3 py-1 bg-orange-100 hover:bg-orange-200 text-orange-700 text-sm rounded transition-colors disabled:opacity-50"
       >
         作废
       </button>
-      <button 
+      <button
         v-if="task.status !== 'running'"
         @click="$emit('delete', task.id)"
-        class="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-700 text-sm rounded transition-colors"
+        :disabled="loading"
+        class="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-700 text-sm rounded transition-colors disabled:opacity-50"
       >
         删除
       </button>
@@ -49,6 +52,7 @@ import type { Task } from '../../types';
 
 const props = defineProps<{
   task: Task;
+  loading?: boolean;
 }>();
 
 defineEmits<{

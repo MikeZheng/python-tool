@@ -33,9 +33,10 @@
             class="flex-1 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 px-4 py-2"
             placeholder="输入目录路径"
           >
-          <button 
+          <button
             @click="addTask"
-            class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-md"
+            :disabled="taskStore.loading"
+            class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-md disabled:opacity-50"
           >
             添加任务
           </button>
@@ -48,15 +49,17 @@
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-lg font-semibold text-blue-900">当前运行任务</h2>
         <div class="flex gap-2">
-          <button 
+          <button
             @click="pauseTask"
-            class="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white font-medium rounded-md text-sm"
+            :disabled="taskStore.loading"
+            class="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white font-medium rounded-md text-sm disabled:opacity-50"
           >
             暂停任务
           </button>
-          <button 
+          <button
             @click="cancelTask(taskStore.runningTask.id)"
-            class="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-md text-sm"
+            :disabled="taskStore.loading"
+            class="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-md text-sm disabled:opacity-50"
           >
             作废任务
           </button>
@@ -109,10 +112,11 @@
         <h2 class="text-lg font-semibold text-yellow-900">待执行任务 ({{ taskStore.queuedTasks.length }})</h2>
       </div>
       <div class="divide-y divide-yellow-200">
-        <TaskItem 
-          v-for="task in taskStore.queuedTasks" 
+        <TaskItem
+          v-for="task in taskStore.queuedTasks"
           :key="task.id"
           :task="task"
+          :loading="taskStore.loading"
           @delete="deleteTask"
           @cancel="cancelTask"
         />
@@ -125,10 +129,11 @@
         <h2 class="text-lg font-semibold text-gray-900">已完成任务</h2>
       </div>
       <div class="divide-y divide-gray-200">
-        <TaskItem 
-          v-for="task in taskStore.completedTasks" 
+        <TaskItem
+          v-for="task in taskStore.completedTasks"
           :key="task.id"
           :task="task"
+          :loading="taskStore.loading"
           @delete="deleteTask"
         />
       </div>
@@ -140,10 +145,11 @@
         <h2 class="text-lg font-semibold text-red-900">失败任务</h2>
       </div>
       <div class="divide-y divide-red-200">
-        <TaskItem 
-          v-for="task in taskStore.failedTasks" 
+        <TaskItem
+          v-for="task in taskStore.failedTasks"
           :key="task.id"
           :task="task"
+          :loading="taskStore.loading"
           @retry="retryTask"
           @delete="deleteTask"
         />

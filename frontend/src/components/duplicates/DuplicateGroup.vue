@@ -34,9 +34,10 @@
         :checked="selected"
         @change="handleSelect"
       >
-      <button 
+      <button
         @click="emit('deduplicate', props.group[0].sha256)"
-        class="ml-4 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-md"
+        :disabled="loading"
+        class="ml-4 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-md disabled:opacity-50"
       >
         去重
       </button>
@@ -56,6 +57,7 @@ const { showToast } = useToast();
 const props = defineProps<{
   group: DuplicateGroup;
   selected: boolean;
+  loading: boolean;
 }>();
 
 const earliestFile = computed(() => {

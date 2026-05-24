@@ -2,9 +2,9 @@
   <div class="p-6">
     <div class="flex justify-between items-center mb-6">
       <h1 class="text-3xl font-bold text-gray-900">重复文件</h1>
-      <button 
+      <button
         @click="batchDeduplicate"
-        :disabled="selectedDuplicates.size === 0"
+        :disabled="selectedDuplicates.size === 0 || duplicatesStore.loading"
         class="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-md disabled:opacity-50"
       >
         批量去重
@@ -40,11 +40,12 @@
       <div v-if="filteredGroups.length === 0" class="text-center text-gray-500 py-8">
         没有找到重复文件
       </div>
-      <DuplicateGroup 
-        v-for="group in filteredGroups" 
+      <DuplicateGroup
+        v-for="group in filteredGroups"
         :key="group[0].sha256"
         :group="group"
         :selected="selectedDuplicates.has(group[0].sha256)"
+        :loading="duplicatesStore.loading"
         @select="updateSelected"
         @deduplicate="deduplicateGroup"
       />

@@ -153,8 +153,13 @@ class TimeExtractionService:
         try:
             stat = os.stat(file_path)
 
-            # Creation time (Windows: st_ctime is creation time, Unix: metadata change time)
-            times['fs_created'] = datetime.fromtimestamp(stat.st_ctime)
+            # st_birthtime is the actual creation time where available (macOS, Python 3.12+);
+            # fall back to st_ctime (correct on Windows, metadata-change time on Linux)
+            try:
+                birthtime = stat.st_birthtime
+            except AttributeError:
+                birthtime = stat.st_ctime
+            times['fs_created'] = datetime.fromtimestamp(birthtime)
 
             # Modification time
             times['fs_modified'] = datetime.fromtimestamp(stat.st_mtime)

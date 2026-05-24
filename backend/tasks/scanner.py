@@ -178,7 +178,11 @@ def scan_directory_task(directory_path: str, task_id: int = None):
                 # Get file stats
                 stat_info = os.stat(file_path)
                 filename = os.path.basename(file_path)
-                creation_time = datetime.fromtimestamp(stat_info.st_ctime).strftime('%Y-%m-%d %H:%M:%S')
+                try:
+                    birthtime = stat_info.st_birthtime
+                except AttributeError:
+                    birthtime = stat_info.st_ctime
+                creation_time = datetime.fromtimestamp(birthtime).strftime('%Y-%m-%d %H:%M:%S')
                 file_size = stat_info.st_size
 
                 # Calculate SHA256

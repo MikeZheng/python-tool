@@ -206,18 +206,11 @@ class FileOperationsService:
         """
         base, ext = os.path.splitext(original_name)
 
-        # Remove existing timestamp patterns from filename
-        # Patterns to remove: _20231215_143000, 20231215143000, _20231215, etc.
-        patterns_to_remove = [
-            r'_?\d{14}_?',      # _20231215143000_
-            r'_?\d{8}_\d{6}',   # _20231215_143000
-            r'_?\d{8}',         # _20231215
-            r'_\d{10}',         # Unix timestamp
-        ]
-
-        clean_base = base
-        for pattern in patterns_to_remove:
-            clean_base = re.sub(pattern, '', clean_base, flags=re.IGNORECASE)
+        # Remove our own timestamp suffix pattern if present:
+        #   _YYYYmmddHHMMSS  (14 digits)
+        #   _YYYYmmdd         (8 digits)
+        clean_base = re.sub(r'_\d{14}$', '', base)
+        clean_base = re.sub(r'_\d{8}$', '', clean_base)
 
         # Remove trailing underscores or hyphens
         clean_base = clean_base.rstrip('_-')

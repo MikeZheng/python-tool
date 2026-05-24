@@ -44,17 +44,7 @@ class StorageInterface(ABC):
         """Save configuration to database"""
         pass
 
-    # ==================== Scanned Directories Methods ====================
-
-    @abstractmethod
-    def add_scanned_directory(self, directory_path: str) -> int:
-        """Add a scanned directory record, return directory_id"""
-        pass
-
-    @abstractmethod
-    def get_scanned_directory(self, task_id: int) -> Optional[Dict[str, Any]]:
-        """Get a specific scanned directory"""
-        pass
+    # ==================== Task Stats Methods ====================
 
     @abstractmethod
     def update_task_stats(self, task_id: int, stats: Dict[str, Any]) -> None:

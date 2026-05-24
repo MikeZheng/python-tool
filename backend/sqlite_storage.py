@@ -368,50 +368,7 @@ class SQLiteStorage(StorageInterface):
             conn.commit()
         logging.info(f"Saved configuration: storage={storage_dir}, backup={backup_dir}")
 
-    # ==================== Scanned Directories Methods ====================
-
-    def add_scanned_directory(self, directory_path: str) -> int:
-        """Add a scanned directory record, return task_id"""
-        with closing(sqlite3.connect(DB_PATH)) as conn:
-            cursor = conn.cursor()
-
-            # Create a new scan task
-            cursor.execute('''
-                INSERT INTO scan_tasks (directory_path, status)
-                VALUES (?, 'queued')
-            ''', (directory_path,))
-
-            task_id = cursor.lastrowid
-
-            conn.commit()
-        logging.info(f"Added scanned directory task: {directory_path} (id={task_id})")
-        return task_id
-
-    def get_scanned_directory(self, task_id: int) -> Optional[Dict[str, Any]]:
-        """Get a specific scanned directory"""
-        with closing(sqlite3.connect(DB_PATH)) as conn:
-            cursor = conn.cursor()
-
-            cursor.execute('''
-                SELECT id, directory_path, total_files, photo_count, video_count, other_count,
-                       duplicate_count, status, scan_ended_at as scanned_at
-                FROM scan_tasks WHERE id = ?
-            ''', (task_id,))
-            row = cursor.fetchone()
-
-        if row:
-            return {
-                'id': row[0],
-                'directory_path': row[1],
-                'total_files': row[2],
-                'photo_count': row[3],
-                'video_count': row[4],
-                'other_count': row[5],
-                'duplicate_count': row[6],
-                'scan_status': row[7],
-                'scanned_at': row[8]
-            }
-        return None
+    # ==================== Task Stats Methods ====================
 
     def update_task_stats(self, task_id: int, stats: Dict[str, Any]) -> None:
         """Update task statistics after scan"""

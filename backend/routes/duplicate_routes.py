@@ -8,8 +8,8 @@ duplicate_bp = Blueprint('duplicate', __name__)
 def get_duplicates():
     """Get duplicate file groups"""
     try:
-        page = int(request.args.get('page', 1))
-        limit = int(request.args.get('limit', 20))
+        page = max(1, int(request.args.get('page', 1)))
+        limit = max(1, min(int(request.args.get('limit', 20)), 100))
 
         all_groups = get_storage().get_duplicate_groups()
 

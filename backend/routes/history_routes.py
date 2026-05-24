@@ -7,8 +7,8 @@ history_bp = Blueprint('history', __name__)
 def get_history():
     """Get operation history"""
     try:
-        page = int(request.args.get('page', 1))
-        limit = int(request.args.get('limit', 20))
+        page = max(1, int(request.args.get('page', 1)))
+        limit = max(1, min(int(request.args.get('limit', 20)), 100))
 
         result = get_history_service().get_history(page, limit)
         return jsonify({'success': True, 'data': result})

@@ -23,17 +23,21 @@ class ConfigService:
         if config is None:
             return {
                 'storage_directory': '',
-                'backup_directory': ''
+                'backup_directory': '',
+                'max_concurrent_tasks': 2
             }
+        config.setdefault('max_concurrent_tasks', 2)
         return config
 
-    def save_config(self, storage_directory: str, backup_directory: str) -> Dict[str, Any]:
+    def save_config(self, storage_directory: str, backup_directory: str,
+                    max_concurrent_tasks: Optional[int] = None) -> Dict[str, Any]:
         """
         Save configuration
 
         Args:
             storage_directory: Directory to store deduplicated files
             backup_directory: Directory to backup deleted files
+            max_concurrent_tasks: Max concurrent scan tasks (None = keep existing)
 
         Returns:
             Saved configuration
@@ -49,6 +53,12 @@ class ConfigService:
             'storage_directory': storage_directory,
             'backup_directory': backup_directory
         }
+
+        if max_concurrent_tasks is not None:
+            config['max_concurrent_tasks'] = max(1, max_concurrent_tasks)
+        else:
+            current = self.get_config().get('max_concurrent_tasks', 2)
+            config['max_concurrent_tasks'] = current
 
         self.storage.save_config(config)
         logging.info(f"Configuration saved: storage={storage_directory}, backup={backup_directory}")

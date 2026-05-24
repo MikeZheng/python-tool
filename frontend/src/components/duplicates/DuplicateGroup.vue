@@ -20,11 +20,12 @@
       </div>
     </div>
     <div class="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      <FileCard 
-        v-for="file in group" 
+      <FileCard
+        v-for="file in group"
         :key="file.filepath"
         :file="file"
         :is-earliest="file.is_earliest"
+        @preview="(file) => emit('preview', file)"
       />
     </div>
     <div class="px-6 py-3 bg-gray-50 border-t border-gray-200 flex justify-end">
@@ -50,7 +51,7 @@ import { computed } from 'vue';
 import FileCard from './FileCard.vue';
 import { useToast } from '../../composables/useToast';
 import { formatFileSize } from '../../utils/format';
-import type { DuplicateGroup } from '../../types';
+import type { DuplicateGroup, File as FileInfo } from '../../types';
 
 const { showToast } = useToast();
 
@@ -71,6 +72,7 @@ const formatDate = (dateString: string): string => {
 const emit = defineEmits<{
   (e: 'select', sha256: string, selected: boolean): void;
   (e: 'deduplicate', sha256: string): void;
+  (e: 'preview', file: FileInfo): void;
 }>();
 
 const handleSelect = (event: Event) => {

@@ -1,11 +1,15 @@
 <template>
   <div :class="['border rounded-lg overflow-hidden', isEarliest ? 'border-green-500 bg-green-50' : 'border-gray-200']">
-    <div v-if="isImage" class="h-32 bg-gray-100 relative">
+    <div
+      v-if="isImage"
+      class="h-32 bg-gray-100 relative cursor-zoom-in"
+      @click="emit('preview', file)"
+    >
       <img
         v-if="!imageError"
         :src="getFileUrl(file.filepath)"
         :alt="file.filename"
-        class="w-full h-full object-contain bg-gray-100"
+        class="w-full h-full object-contain bg-gray-100 pointer-events-none"
         @error="imageError = true"
       >
       <div v-else class="h-full flex items-center justify-center text-gray-400">无预览</div>
@@ -61,6 +65,10 @@ import { formatFileSize } from '../../utils/format';
 const props = defineProps<{
   file: File;
   isEarliest: boolean;
+}>();
+
+const emit = defineEmits<{
+  (e: 'preview', file: File): void;
 }>();
 
 const imageError = ref(false);

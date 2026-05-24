@@ -48,8 +48,17 @@
         :loading="duplicatesStore.loading"
         @select="updateSelected"
         @deduplicate="deduplicateGroup"
+        @preview="openPreview"
       />
     </div>
+
+    <!-- Image Viewer -->
+    <ImageViewer
+      :images="previewImages"
+      :initial-index="previewIndex"
+      :visible="previewVisible"
+      @close="previewVisible = false"
+    />
 
     <!-- Pagination -->
     <div class="flex justify-center items-center gap-4 mt-6">
@@ -80,6 +89,8 @@ import { useDuplicatesStore } from '../stores/duplicates';
 import { useToast } from '../composables/useToast';
 import { formatFileSize } from '../utils/format';
 import DuplicateGroup from '../components/duplicates/DuplicateGroup.vue';
+import ImageViewer from '../components/common/ImageViewer.vue';
+import type { File as FileInfo } from '../types';
 
 
 const duplicatesStore = useDuplicatesStore();
@@ -87,6 +98,32 @@ const { showToast } = useToast();
 
 const filterType = ref('all');
 const selectedDuplicates = ref<Set<string>>(new Set());
+
+// Image viewer state
+const previewImages = ref<string[]>([]);
+const previewIndex = ref(0);
+const previewVisible = ref(false);
+
+const apiBase = import.meta.env.VITE_API_BASE_URL || '';
+
+const getFileUrl = (filePath: string): string => {
+  return `${apiBase}/api/files/${encodeURIComponent(filePath)}`;
+};
+
+const isImageFile = (filename: string): boolean => {
+  const ext = filename.toLowerCase().substring(filename.lastIndexOf('.'));
+  return ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff'].includes(ext);
+};
+
+const openPreview = (file: FileInfo) => {
+  const allImageFiles = filteredGroups.value
+    .flat()
+    .filter(f => isImageFile(f.filename));
+
+  previewImages.value = allImageFiles.map(f => getFileUrl(f.filepath));
+  previewIndex.value = allImageFiles.findIndex(f => f.filepath === file.filepath);
+  previewVisible.value = true;
+};
 
 const selectAll = computed({
   get: () =>

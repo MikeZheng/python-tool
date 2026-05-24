@@ -1,26 +1,13 @@
 import sqlite3
 import os
 import logging
-import sys
 import json
 from contextlib import closing
 from typing import Dict, List, Optional, Union, Any
 from datetime import datetime
 from storage_base import StorageInterface
 
-# Constants
 DB_PATH: str = r"file_database.db"
-
-# Configure logging to output to a file in the current directory
-# This sets up logging to both a file and console output
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('file_processing.log', encoding='utf-8'),
-        logging.StreamHandler(sys.stdout)
-    ]
-)
 
 
 class SQLiteStorage(StorageInterface):

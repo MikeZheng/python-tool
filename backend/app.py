@@ -1,6 +1,7 @@
 from flask import Flask, send_file
 from flask_cors import CORS
 import logging
+from logging.handlers import RotatingFileHandler
 import os
 
 from routes.config_routes import config_bp
@@ -13,12 +14,12 @@ from routes.task_routes import task_bp
 app = Flask(__name__)
 CORS(app)
 
-# Configure logging
+# Configure logging with rotation (max 10MB, keep 3 backups)
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('file_processing.log', encoding='utf-8'),
+        RotatingFileHandler('file_processing.log', maxBytes=10*1024*1024, backupCount=3, encoding='utf-8'),
         logging.StreamHandler()
     ]
 )

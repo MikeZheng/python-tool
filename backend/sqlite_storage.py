@@ -229,35 +229,6 @@ class SQLiteStorage(StorageInterface):
 
         return file_cache
 
-    def save_files(self, file_data_list: List[Optional[Dict[str, Union[str, int]]]]) -> None:
-        """Save all file information to database"""
-        logging.info(f"Saving {len([f for f in file_data_list if f])} file records to database")
-        with closing(sqlite3.connect(DB_PATH)) as conn:
-            cursor = conn.cursor()
-
-            # Clear existing data
-            cursor.execute('DELETE FROM files')
-            logging.debug("Cleared existing files from database")
-
-            # Insert new data
-            inserted_count = 0
-            for file_data in file_data_list:
-                if file_data:
-                    cursor.execute('''
-                        INSERT OR REPLACE INTO files (filename, filepath, creation_time, file_size, sha256)
-                        VALUES (?, ?, ?, ?, ?)
-                    ''', (
-                        file_data['filename'],
-                        file_data['filepath'],
-                        file_data['creation_time'],
-                        file_data['file_size'],
-                        file_data['sha256']
-                    ))
-                    inserted_count += 1
-
-            conn.commit()
-        logging.info(f"Saved {inserted_count} file records to database")
-
     def delete_file(self, filepath: str) -> None:
         """delete one file"""
         logging.info(f"Deleting file record: {filepath}")

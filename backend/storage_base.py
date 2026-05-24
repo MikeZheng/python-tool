@@ -13,11 +13,6 @@ class StorageInterface(ABC):
         pass
 
     @abstractmethod
-    def save_files(self, file_data_list: List[Optional[Dict[str, Union[str, int]]]]) -> None:
-        """Save all file information"""
-        pass
-
-    @abstractmethod
     def delete_file(self, filepath: str) -> None:
         """delete one file"""
         pass

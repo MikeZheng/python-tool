@@ -232,11 +232,8 @@ def scan_directory_task(directory_path: str, task_id: int = None):
             except Exception as e:
                 logging.error(f"Error processing file {file_path}: {e}")
 
-        # Count duplicates within current scan
-        duplicate_count = 0
-        for count in sha256_counts.values():
-            if count > 1:
-                duplicate_count += count
+        # Count duplicate files (redundant copies, not originals)
+        duplicate_count = sum(c - 1 for c in sha256_counts.values() if c > 1)
 
         # Update directory stats
         stats = {

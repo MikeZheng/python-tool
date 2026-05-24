@@ -6,7 +6,8 @@ export const useConfigStore = defineStore('config', {
   state: () => ({
     config: {
       storage_directory: '',
-      backup_directory: ''
+      backup_directory: '',
+      max_concurrent_tasks: 2
     } as Config,
     loading: false
   }),
@@ -28,10 +29,10 @@ export const useConfigStore = defineStore('config', {
       return null;
     },
 
-    async updateConfig(storageDirectory: string, backupDirectory: string): Promise<ApiResponse<Config>> {
+    async updateConfig(storageDirectory: string, backupDirectory: string, maxConcurrentTasks?: number): Promise<ApiResponse<Config>> {
       this.loading = true;
       try {
-        const response = await configApi.updateConfig(storageDirectory, backupDirectory);
+        const response = await configApi.updateConfig(storageDirectory, backupDirectory, maxConcurrentTasks);
         if (response.success && response.data) {
           this.config = response.data;
         }

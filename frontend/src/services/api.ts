@@ -25,10 +25,11 @@ export const configApi = {
     const response = await apiClient.get('/config');
     return response.data;
   },
-  updateConfig: async (storageDirectory: string, backupDirectory: string): Promise<ApiResponse<Config>> => {
+  updateConfig: async (storageDirectory: string, backupDirectory: string, maxConcurrentTasks?: number): Promise<ApiResponse<Config>> => {
     const response = await apiClient.put('/config', {
       storage_directory: storageDirectory,
-      backup_directory: backupDirectory
+      backup_directory: backupDirectory,
+      max_concurrent_tasks: maxConcurrentTasks
     });
     return response.data;
   }

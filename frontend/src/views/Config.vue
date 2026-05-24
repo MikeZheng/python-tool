@@ -35,13 +35,13 @@
             备份目录
           </label>
           <div class="flex gap-4">
-            <input 
-              type="text" 
+            <input
+              type="text"
               v-model="backupDirectory"
               class="flex-1 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 px-4 py-2"
               placeholder="例如: F:\备份"
             >
-            <button 
+            <button
               @click="selectBackupDirectory"
               class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-md"
             >
@@ -49,6 +49,21 @@
             </button>
           </div>
           <p class="mt-1 text-sm text-gray-500">被替换的重复文件将移动到此目录作为备份</p>
+        </div>
+
+        <!-- Max Concurrent Tasks -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">
+            最大并行任务数
+          </label>
+          <input
+            type="number"
+            v-model.number="maxConcurrent"
+            min="1"
+            max="10"
+            class="w-32 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 px-4 py-2"
+          >
+          <p class="mt-1 text-sm text-gray-500">同时执行的扫描任务数量（1-10），修改后实时生效</p>
         </div>
 
         <!-- Directory Structure Preview -->
@@ -91,6 +106,7 @@ const { showToast } = useToast();
 
 const storageDirectory = ref('');
 const backupDirectory = ref('');
+const maxConcurrent = ref(2);
 
 const selectStorageDirectory = () => {
   const path = prompt('请输入存储目录路径:');
@@ -108,7 +124,7 @@ const saveConfig = async () => {
     return;
   }
 
-  const result = await configStore.updateConfig(storageDirectory.value, backupDirectory.value);
+  const result = await configStore.updateConfig(storageDirectory.value, backupDirectory.value, maxConcurrent.value);
   if (result.success) {
     showToast('配置保存成功');
   } else {
@@ -121,6 +137,7 @@ onMounted(async () => {
   if (config) {
     storageDirectory.value = config.storage_directory || '';
     backupDirectory.value = config.backup_directory || '';
+    maxConcurrent.value = config.max_concurrent_tasks || 2;
   }
 });
 </script>

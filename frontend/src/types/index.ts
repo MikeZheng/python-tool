@@ -21,6 +21,7 @@ export interface DashboardStats {
 export interface Config {
   storage_directory: string;
   backup_directory: string;
+  max_concurrent_tasks: number;
 }
 
 // 目录类型

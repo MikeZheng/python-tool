@@ -70,7 +70,9 @@ def deduplicate_single(sha256: str):
 def batch_deduplicate():
     """Batch deduplicate multiple groups"""
     try:
-        data = request.json
+        data = request.get_json(silent=True)
+        if not data:
+            return jsonify({'success': False, 'error': 'Invalid or missing JSON body'}), 400
         sha256_list = data.get('sha256_list', [])
 
         if not sha256_list:

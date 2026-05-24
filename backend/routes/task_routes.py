@@ -58,7 +58,9 @@ def get_tasks():
 def add_task():
     """Add a new scan task"""
     try:
-        data = request.json
+        data = request.get_json(silent=True)
+        if not data:
+            return jsonify({'success': False, 'error': 'Invalid or missing JSON body'}), 400
         directory_path = data.get('directory')
 
         if not directory_path:

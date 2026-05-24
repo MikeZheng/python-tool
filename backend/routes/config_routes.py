@@ -17,7 +17,9 @@ def get_config():
 def update_config():
     """Update configuration"""
     try:
-        data = request.json
+        data = request.get_json(silent=True)
+        if not data:
+            return jsonify({'success': False, 'error': 'Invalid or missing JSON body'}), 400
         storage_directory = data.get('storage_directory', '')
         backup_directory = data.get('backup_directory', '')
 

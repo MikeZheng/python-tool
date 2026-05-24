@@ -144,7 +144,7 @@ def scan_directory_task(directory_path: str, task_id: int = None):
         # Start progress
         progress_svc.start_scan(total_files)
 
-        for file_path in files:
+        for file_path in files[processed:]:
             try:
                 # Check if task is paused or cancelled
                 if task_id:
@@ -159,7 +159,7 @@ def scan_directory_task(directory_path: str, task_id: int = None):
                         progress_svc.complete_scan()
                         return
 
-                # Check if file has been modified
+                # Check if file has been modified since last scan
                 if not is_file_modified(file_path):
                     processed += 1
                     progress_svc.update_progress(file_path, processed, task_id)

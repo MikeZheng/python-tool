@@ -1,5 +1,7 @@
 import os
 import re
+import sys
+import subprocess
 import logging
 from datetime import datetime
 from typing import Dict, Any, Optional, Tuple, List
@@ -52,13 +54,17 @@ class TimeExtractionService:
             return False
 
     def _check_ffmpeg_library(self) -> bool:
-        """Check if ffmpeg is available"""
+        """Check if ffprobe is available"""
         try:
-            import subprocess
-            result = subprocess.run(['ffmpeg', '-version'], capture_output=True, timeout=5)
+            result = subprocess.run(
+                ['ffprobe', '-version'],
+                capture_output=True,
+                timeout=5,
+                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
+            )
             return result.returncode == 0
         except Exception:
-            logging.warning("ffmpeg not available, video metadata extraction disabled")
+            logging.warning("ffprobe not available, video metadata extraction disabled")
             return False
 
     def determine_file_type(self, file_path: str) -> str:
@@ -237,7 +243,8 @@ class TimeExtractionService:
                 '-show_format',
                 '-show_streams',
                 file_path
-            ], capture_output=True, text=True, timeout=30)
+            ], capture_output=True, text=True, timeout=30,
+                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0)
 
             if result.returncode != 0:
                 return None

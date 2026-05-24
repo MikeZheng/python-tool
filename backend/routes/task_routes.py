@@ -130,7 +130,12 @@ def retry_task(task_id: int):
             'scan_started_at': None,
             'scan_ended_at': None,
             'processed_files': 0,
-            'error_message': None
+            'photo_count': 0,
+            'video_count': 0,
+            'other_count': 0,
+            'duplicate_count': 0,
+            'error_message': None,
+            'pause_data': None
         })
         
         # Add to queue
@@ -180,9 +185,8 @@ def pause_task(task_id: int):
             'status': 'paused'
         })
         
-        # TODO: Implement actual task pausing logic
-        # This would require modifying the scanner.py to support pausing
-        
+        # Scanner polls task status and will save state on next iteration
+
         return jsonify({'success': True, 'message': 'Task paused'})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500

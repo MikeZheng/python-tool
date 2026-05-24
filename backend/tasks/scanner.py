@@ -1,4 +1,5 @@
 import os
+import json
 import logging
 import hashlib
 from datetime import datetime
@@ -61,6 +62,41 @@ def scan_directory_task(directory_path: str, task_id: int = None):
         except Exception:
             return True
 
+    def _save_pause_state(task_id, processed, photo_count, video_count, other_count, sha256_counts):
+        """Save scan state so it can be resumed later"""
+        pause_data = json.dumps({
+            'processed': processed,
+            'photo_count': photo_count,
+            'video_count': video_count,
+            'other_count': other_count,
+            'sha256_counts': sha256_counts
+        })
+        storage.update_scan_task(task_id, {
+            'processed_files': processed,
+            'photo_count': photo_count,
+            'video_count': video_count,
+            'other_count': other_count,
+            'pause_data': pause_data
+        })
+
+    def _load_pause_state(task):
+        """Restore scan state from a paused task"""
+        processed = task.get('processed_files', 0)
+        photo_count = task.get('photo_count', 0)
+        video_count = task.get('video_count', 0)
+        other_count = task.get('other_count', 0)
+        sha256_counts = {}
+
+        pause_data = task.get('pause_data')
+        if pause_data:
+            try:
+                saved = json.loads(pause_data)
+                sha256_counts = saved.get('sha256_counts', {})
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        return processed, photo_count, video_count, other_count, sha256_counts
+
     try:
         logging.info(f"Starting scan for directory: {directory_path} (task_id: {task_id})")
 
@@ -82,29 +118,31 @@ def scan_directory_task(directory_path: str, task_id: int = None):
                 'other_count': 0,
                 'duplicate_count': 0
             })
-            
-            # Update task status if task_id is provided
+
             if task_id:
                 storage.update_scan_task(task_id, {
                     'status': 'completed',
                     'scan_ended_at': datetime.now().isoformat(),
                     'processed_files': 0
                 })
-            
+
             progress_svc.complete_scan()
             return
 
+        # Restore state if resuming a paused task
+        task = storage.get_scan_task(task_id) if task_id else None
+        if task and task.get('processed_files', 0) > 0:
+            processed, photo_count, video_count, other_count, sha256_counts = _load_pause_state(task)
+            logging.info(f"Resuming task {task_id} from file {processed}/{total_files}")
+        else:
+            processed = 0
+            photo_count = 0
+            video_count = 0
+            other_count = 0
+            sha256_counts = {}
+
         # Start progress
         progress_svc.start_scan(total_files)
-
-        # Process files
-        processed = 0
-        photo_count = 0
-        video_count = 0
-        other_count = 0
-        current_sha256s = set()
-        current_files = []
-        sha256_counts = {}
 
         for file_path in files:
             try:
@@ -112,7 +150,8 @@ def scan_directory_task(directory_path: str, task_id: int = None):
                 if task_id:
                     task = storage.get_scan_task(task_id)
                     if task and task['status'] == 'paused':
-                        logging.info(f"Task {task_id} has been paused")
+                        logging.info(f"Task {task_id} has been paused, saving state at file {processed}/{total_files}")
+                        _save_pause_state(task_id, processed, photo_count, video_count, other_count, sha256_counts)
                         progress_svc.pause_scan()
                         return
                     if task and task['status'] == 'cancelled':
@@ -174,10 +213,6 @@ def scan_directory_task(directory_path: str, task_id: int = None):
                 }
                 file_id = storage.add_file(file_data, task_id)
                 
-                # Track current files for duplicate counting
-                current_sha256s.add(sha256)
-                current_files.append(file_data)
-                
                 # Check if file is duplicate
                 is_duplicate = sha256 in sha256_counts
                 if is_duplicate:
@@ -213,7 +248,8 @@ def scan_directory_task(directory_path: str, task_id: int = None):
             storage.update_scan_task(task_id, {
                 'status': 'completed',
                 'scan_ended_at': datetime.now().isoformat(),
-                'processed_files': processed
+                'processed_files': processed,
+                'pause_data': None
             })
 
         progress_svc.complete_scan()

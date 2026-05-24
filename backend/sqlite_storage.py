@@ -183,6 +183,7 @@ class SQLiteStorage(StorageInterface):
             ('duplicate_count', 'INTEGER DEFAULT 0'),
             ('error_message', 'TEXT'),
             ('cancelled_at', 'TIMESTAMP'),
+            ('pause_data', 'TEXT'),
         ]
 
         for col_name, col_type in new_columns:
@@ -795,8 +796,9 @@ class SQLiteStorage(StorageInterface):
         cursor = conn.cursor()
 
         cursor.execute('''
-            SELECT id, directory_path, status, scan_started_at, scan_ended_at, 
-                   total_files, processed_files, error_message, created_at
+            SELECT id, directory_path, status, scan_started_at, scan_ended_at,
+                   total_files, processed_files, photo_count, video_count,
+                   other_count, duplicate_count, error_message, created_at, pause_data
             FROM scan_tasks WHERE id = ?
         ''', (task_id,))
         row = cursor.fetchone()
@@ -811,8 +813,13 @@ class SQLiteStorage(StorageInterface):
                 'scan_ended_at': row[4],
                 'total_files': row[5],
                 'processed_files': row[6],
-                'error_message': row[7],
-                'created_at': row[8]
+                'photo_count': row[7] or 0,
+                'video_count': row[8] or 0,
+                'other_count': row[9] or 0,
+                'duplicate_count': row[10] or 0,
+                'error_message': row[11],
+                'created_at': row[12],
+                'pause_data': row[13]
             }
         return None
 
@@ -822,8 +829,9 @@ class SQLiteStorage(StorageInterface):
         cursor = conn.cursor()
 
         cursor.execute('''
-            SELECT id, directory_path, status, scan_started_at, scan_ended_at, 
-                   total_files, processed_files, error_message, created_at
+            SELECT id, directory_path, status, scan_started_at, scan_ended_at,
+                   total_files, processed_files, photo_count, video_count,
+                   other_count, duplicate_count, error_message, created_at, pause_data
             FROM scan_tasks
             ORDER BY created_at DESC
         ''')
@@ -838,8 +846,13 @@ class SQLiteStorage(StorageInterface):
             'scan_ended_at': row[4],
             'total_files': row[5],
             'processed_files': row[6],
-            'error_message': row[7],
-            'created_at': row[8]
+            'photo_count': row[7] or 0,
+            'video_count': row[8] or 0,
+            'other_count': row[9] or 0,
+            'duplicate_count': row[10] or 0,
+            'error_message': row[11],
+            'created_at': row[12],
+            'pause_data': row[13]
         } for row in rows]
 
     def update_scan_task(self, task_id: int, task_data: Dict[str, Any]) -> None:

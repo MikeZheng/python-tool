@@ -25,7 +25,10 @@
               {{ formatDate(operation.created_at) }}
             </td>
             <td class="px-6 py-4">
-              <span class="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">
+              <span v-if="operation.operation_type === 'delete'" class="px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full">
+                删除
+              </span>
+              <span v-else class="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">
                 去重
               </span>
             </td>

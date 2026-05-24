@@ -293,6 +293,20 @@ class FileOperationsService:
                 logging.error(f"Failed to delete file {filepath}: {e}")
                 errors.append(filepath)
 
+        # Log operation
+        space_saved = sum(f['file_size'] for f in files)
+        operation = {
+            'operation_type': 'delete',
+            'sha256': sha256,
+            'kept_file_path': '',
+            'kept_file_new_path': '',
+            'backup_files': [f['filepath'] for f in files],
+            'earliest_time': '',
+            'file_size': 0,
+            'space_saved': space_saved
+        }
+        self.storage.log_operation(operation)
+
         if errors:
             return {
                 'success': False,

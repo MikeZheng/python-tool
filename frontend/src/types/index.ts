@@ -80,6 +80,7 @@ export interface DuplicatesResponse {
 // 历史操作类型
 export interface HistoryOperation {
   id: number;
+  operation_type: string;
   sha256: string;
   kept_file_path: string;
   kept_file_new_path?: string;

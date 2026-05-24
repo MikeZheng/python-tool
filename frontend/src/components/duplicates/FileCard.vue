@@ -76,8 +76,10 @@ const isVideo = computed(() => {
   return ['.mp4', '.mov', '.avi', '.mkv', '.wmv'].includes(ext);
 });
 
+const apiBase = import.meta.env.VITE_API_BASE_URL || '';
+
 const getFileUrl = (filePath: string): string => {
   const encodedPath = encodeURIComponent(filePath);
-  return `http://localhost:5000/api/files/${encodedPath}`;
+  return `${apiBase}/api/files/${encodedPath}`;
 };
 </script>

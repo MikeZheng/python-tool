@@ -1,10 +1,9 @@
 import axios from 'axios';
 import type { ApiResponse, DashboardStats, Config, Directory, ScanProgress, HistoryResponse, DeduplicateResult, BatchDeduplicateResult, Task } from '../types';
 
-// API基础URL
-const API_BASE = 'http://localhost:5000/api';
+// API base URL — uses Vite proxy in dev, same-origin in production
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
 
-// 创建axios实例
 const apiClient = axios.create({
   baseURL: API_BASE,
   headers: {

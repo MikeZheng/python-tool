@@ -61,6 +61,8 @@ def deduplicate_single(sha256: str):
     """Deduplicate a single group"""
     try:
         result = get_file_ops_service().deduplicate_group(sha256)
+        if result.get('success'):
+            return jsonify({'success': True, 'data': result})
         return jsonify(result)
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -89,6 +91,8 @@ def batch_deduplicate():
             return jsonify({'success': False, 'error': 'No SHA256 list provided'}), 400
 
         result = get_file_ops_service().batch_deduplicate(sha256_list)
+        if result.get('success'):
+            return jsonify({'success': True, 'data': result})
         return jsonify(result)
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
